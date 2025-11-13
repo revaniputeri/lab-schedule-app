@@ -85,4 +85,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'jadwallab-350e4.firebasestorage.app',
     measurementId: 'G-K24E2LJT2X',
   );
+
 }
