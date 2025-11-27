@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/firebase_service.dart';
+import '../services/booking_service.dart';
 import '../models/lab.dart';
 import '../models/date_availability.dart';
 import '../widgets/month_selector.dart';

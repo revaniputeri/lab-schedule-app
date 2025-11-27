@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/lab.dart';
 import '../models/sesi.dart';
-import '../services/firebase_service.dart';
+import '../services/booking_service.dart';
 
 class BookingFormPage extends StatefulWidget {
   final Lab lab;
