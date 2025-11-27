@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 // File: userDashboard.dart
@@ -17,6 +18,7 @@ class _UserDashboardState extends State<UserDashboard>
   late AnimationController _pulseController;
   
   int _selectedIndex = 0;
+
   
   // Sample data
   final List<Map<String, dynamic>> upcomingBookings = [
@@ -133,7 +135,6 @@ class _UserDashboardState extends State<UserDashboard>
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
-      floatingActionButton: _buildFloatingActionButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
@@ -195,25 +196,50 @@ class _UserDashboardState extends State<UserDashboard>
             padding: const EdgeInsets.only(right: 20, top: 40),
             child: Align(
               alignment: Alignment.topRight,
-              child: AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: 1.0 + (_pulseController.value * 0.1),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: const Icon(
-                        Icons.notifications_outlined,
-                        color: Colors.white,
-                        size: 28,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: 1.0 + (_pulseController.value * 0.1),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: const Icon(
+                            Icons.notifications_outlined,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 10),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _showLogoutDialog,
+                      borderRadius: BorderRadius.circular(15),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: const Icon(
+                          Icons.logout,
+                          color: Colors.white,
+                          size: 28, 
+                        ),
                       ),
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
           ),
@@ -669,26 +695,67 @@ class _UserDashboardState extends State<UserDashboard>
     );
   }
 
-  Widget _buildFloatingActionButton() {
-    return ScaleTransition(
-      scale: Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(
-          parent: _fadeController,
-          curve: Curves.elasticOut,
+
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.logout, color: Colors.orange.shade600),
+            ),
+            const SizedBox(width: 12),
+            const Text('Logout'),
+          ],
         ),
-      ),
-      child: FloatingActionButton.extended(
-        onPressed: () {},
-        backgroundColor: Colors.purple.shade600,
-        elevation: 8,
-        icon: const Icon(Icons.add_circle_outline, size: 28),
-        label: const Text(
-          'Booking Baru',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+        content: const Text(
+          'Apakah Anda yakin ingin keluar?',
+          style: TextStyle(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: TextStyle(color: Colors.grey.shade600)),
           ),
-        ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await FirebaseAuth.instance.signOut();
+              Navigator.pushReplacementNamed(context, '/');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.white),
+                      SizedBox(width: 10),
+                      Text('Berhasil logout'),
+                    ],
+                  ),
+                  backgroundColor: Colors.green.shade600,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade600,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
       ),
     );
   }
