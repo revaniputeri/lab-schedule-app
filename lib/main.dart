@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
-import 'screen/booking_page.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'screens/login_screen.dart';
+import 'firebase_options.dart'; // otomatis dibuat oleh Firebase CLI
 
 void main() async {
-  // Initialize Firebase sebelum runApp
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  runApp(const LabBookingApp());
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  runApp(const MyApp());
 }
 
 class LabBookingApp extends StatelessWidget {
@@ -19,14 +15,17 @@ class LabBookingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lab Booking',
       debugShowCheckedModeBanner: false,
+      title: 'Jadwal Laboratorium',
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-        fontFamily: 'Poppins',
+        colorSchemeSeed: Colors.blueAccent,
       ),
-      home: const RoomBookingPage(),
+      routes: {
+        '/': (context) => const LoginScreen(),
+        '/adminDashboard': (context) => const Placeholder(),
+        '/userDashboard': (context) => const Placeholder(),
+      },
     );
   }
 }
