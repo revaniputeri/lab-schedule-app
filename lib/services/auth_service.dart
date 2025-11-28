@@ -9,7 +9,9 @@ class AuthService {
   Future<Map<String, dynamic>?> loginUser(String email, String password) async {
     try {
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-          email: email, password: password);
+        email: email,
+        password: password,
+      );
 
       var userDoc = await _firestore
           .collection('users')
@@ -22,16 +24,23 @@ class AuthService {
         throw Exception('Data user tidak ditemukan di Firestore');
       }
     } catch (e) {
+      if (e is FirebaseAuthException) {
+        throw Exception('Login gagal: ${e.code} | ${e.message}');
+      }
       throw Exception('Login gagal: $e');
     }
   }
 
   // REGISTER
   Future<void> registerUser(
-      String name, String email, String password, String role) async {
+    String name,
+    String email,
+    String password,
+    String role,
+  ) async {
     try {
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'name': name,

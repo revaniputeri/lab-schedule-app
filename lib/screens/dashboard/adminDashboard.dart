@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jadwal_lab/widgets/navbar.dart';
 
 // File: adminDashboard.dart
 // Dashboard untuk Admin/Dosen untuk validasi booking
@@ -119,11 +120,7 @@ class _AdminDashboardState extends State<AdminDashboard>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Colors.deepPurple.shade50,
-              Colors.indigo.shade50,
-              Colors.blue.shade50,
-            ],
+            colors: [Color(0xFFF0F4FF), Color(0xFFE8F1FF), Color(0xFFF5F9FF)],
           ),
         ),
         child: SafeArea(
@@ -149,33 +146,27 @@ class _AdminDashboardState extends State<AdminDashboard>
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: Navbar(userRole: 'admin', currentIndex: 0),
     );
   }
 
   Widget _buildAppBar() {
     return SlideTransition(
-      position: Tween<Offset>(
-        begin: const Offset(0, -1),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(
-        parent: _slideController,
-        curve: Curves.easeOut,
-      )),
+      position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero)
+          .animate(
+            CurvedAnimation(parent: _slideController, curve: Curves.easeOut),
+          ),
       child: Container(
         margin: const EdgeInsets.all(20),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Colors.deepPurple.shade600,
-              Colors.indigo.shade600,
-            ],
+            colors: [Color(0xFF4A90E2), Color(0xFF5B9FEE), Color(0xFF6BADFF)],
           ),
           borderRadius: BorderRadius.circular(25),
           boxShadow: [
             BoxShadow(
-              color: Colors.deepPurple.withOpacity(0.3),
+              color: Colors.blue.shade50,
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -222,12 +213,16 @@ class _AdminDashboardState extends State<AdminDashboard>
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.red.shade400,
+                color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.notifications_active, color: Colors.white, size: 20),
+                  Icon(
+                    Icons.notifications_active,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   SizedBox(width: 5),
                   Text(
                     '3',
@@ -296,15 +291,17 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   Widget _buildStatCard(
-      String label, String value, IconData icon, Color iconColor, Color bgColor) {
+    String label,
+    String value,
+    IconData icon,
+    Color iconColor,
+    Color bgColor,
+  ) {
     return TweenAnimationBuilder(
       duration: const Duration(milliseconds: 600),
       tween: Tween<double>(begin: 0, end: 1),
       builder: (context, double val, child) {
-        return Transform.scale(
-          scale: val,
-          child: child,
-        );
+        return Transform.scale(scale: val, child: child);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
@@ -341,10 +338,7 @@ class _AdminDashboardState extends State<AdminDashboard>
             const SizedBox(height: 2),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
               textAlign: TextAlign.center,
             ),
           ],
@@ -372,20 +366,23 @@ class _AdminDashboardState extends State<AdminDashboard>
         controller: _tabController,
         indicator: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.deepPurple.shade400, Colors.indigo.shade400],
+            colors: [Colors.blue.shade400, Colors.blue.shade300],
           ),
           borderRadius: BorderRadius.circular(12),
         ),
         labelColor: Colors.white,
         unselectedLabelColor: Colors.grey.shade600,
-        labelStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-        ),
+        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
         tabs: const [
-          Tab(text: 'Pending'),
-          Tab(text: 'Approved'),
-          Tab(text: 'Rejected'),
+          Tab(
+            child: SizedBox(width: 100, child: Center(child: Text('Pending'))),
+          ),
+          Tab(
+            child: SizedBox(width: 100, child: Center(child: Text('Approved'))),
+          ),
+          Tab(
+            child: SizedBox(width: 100, child: Center(child: Text('Rejected'))),
+          ),
         ],
       ),
     );
@@ -403,10 +400,7 @@ class _AdminDashboardState extends State<AdminDashboard>
           builder: (context, double value, child) {
             return Transform.translate(
               offset: Offset(50 * (1 - value), 0),
-              child: Opacity(
-                opacity: value,
-                child: child,
-              ),
+              child: Opacity(opacity: value, child: child),
             );
           },
           child: _buildPendingBookingCard(pendingBookings[index]),
@@ -478,7 +472,9 @@ class _AdminDashboardState extends State<AdminDashboard>
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(8),
@@ -504,16 +500,32 @@ class _AdminDashboardState extends State<AdminDashboard>
                   child: Column(
                     children: [
                       _buildInfoRow(
-                          Icons.computer, 'Lab', booking['lab'], Colors.blue),
+                        Icons.computer,
+                        'Lab',
+                        booking['lab'],
+                        Colors.blue,
+                      ),
                       const SizedBox(height: 8),
-                      _buildInfoRow(Icons.calendar_today, 'Tanggal',
-                          booking['date'], Colors.green),
+                      _buildInfoRow(
+                        Icons.calendar_today,
+                        'Tanggal',
+                        booking['date'],
+                        Colors.green,
+                      ),
                       const SizedBox(height: 8),
-                      _buildInfoRow(Icons.access_time, 'Waktu',
-                          booking['time'], Colors.orange),
+                      _buildInfoRow(
+                        Icons.access_time,
+                        'Waktu',
+                        booking['time'],
+                        Colors.orange,
+                      ),
                       const SizedBox(height: 8),
-                      _buildInfoRow(Icons.description, 'Keperluan',
-                          booking['purpose'], Colors.purple),
+                      _buildInfoRow(
+                        Icons.description,
+                        'Keperluan',
+                        booking['purpose'],
+                        Colors.purple,
+                      ),
                     ],
                   ),
                 ),
@@ -558,7 +570,11 @@ class _AdminDashboardState extends State<AdminDashboard>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.close, color: Colors.red.shade600, size: 20),
+                            Icon(
+                              Icons.close,
+                              color: Colors.red.shade600,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Tolak',
@@ -574,11 +590,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                     ),
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 50,
-                  color: Colors.grey.shade300,
-                ),
+                Container(width: 1, height: 50, color: Colors.grey.shade300),
                 Expanded(
                   child: Material(
                     color: Colors.transparent,
@@ -592,7 +604,11 @@ class _AdminDashboardState extends State<AdminDashboard>
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.check, color: Colors.green.shade600, size: 20),
+                            Icon(
+                              Icons.check,
+                              color: Colors.green.shade600,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Setujui',
@@ -634,10 +650,7 @@ class _AdminDashboardState extends State<AdminDashboard>
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
               ),
               Text(
                 value,
@@ -689,7 +702,11 @@ class _AdminDashboardState extends State<AdminDashboard>
               color: Colors.green.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.check_circle, color: Colors.green.shade600, size: 32),
+            child: Icon(
+              Icons.check_circle,
+              color: Colors.green.shade600,
+              size: 32,
+            ),
           ),
           const SizedBox(width: 15),
           Expanded(
@@ -707,18 +724,12 @@ class _AdminDashboardState extends State<AdminDashboard>
                 const SizedBox(height: 4),
                 Text(
                   '${booking['lab']} • ${booking['date']}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   booking['time'],
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade500,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -742,18 +753,11 @@ class _AdminDashboardState extends State<AdminDashboard>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.inbox_outlined,
-            size: 80,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.inbox_outlined, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 15),
           Text(
             'Tidak ada booking yang ditolak',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -901,65 +905,65 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(30),
-          topRight: Radius.circular(30),
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(30),
-          topRight: Radius.circular(30),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.deepPurple.shade600,
-          unselectedItemColor: Colors.grey.shade400,
-          selectedFontSize: 12,
-          unselectedFontSize: 11,
-          elevation: 0,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined),
-              activeIcon: Icon(Icons.dashboard),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_month_outlined),
-              activeIcon: Icon(Icons.calendar_month),
-              label: 'Jadwal',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.analytics_outlined),
-              activeIcon: Icon(Icons.analytics),
-              label: 'Statistik',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              activeIcon: Icon(Icons.settings),
-              label: 'Pengaturan',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _buildBottomNav() {
+  //   return Container(
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black.withOpacity(0.1),
+  //           blurRadius: 20,
+  //           offset: const Offset(0, -5),
+  //         ),
+  //       ],
+  //       borderRadius: const BorderRadius.only(
+  //         topLeft: Radius.circular(30),
+  //         topRight: Radius.circular(30),
+  //       ),
+  //     ),
+  //     child: ClipRRect(
+  //       borderRadius: const BorderRadius.only(
+  //         topLeft: Radius.circular(30),
+  //         topRight: Radius.circular(30),
+  //       ),
+  //       child: BottomNavigationBar(
+  //         currentIndex: _selectedIndex,
+  //         onTap: (index) {
+  //           setState(() {
+  //             _selectedIndex = index;
+  //           });
+  //         },
+  //         type: BottomNavigationBarType.fixed,
+  //         backgroundColor: Colors.white,
+  //         selectedItemColor: Colors.deepPurple.shade600,
+  //         unselectedItemColor: Colors.grey.shade400,
+  //         selectedFontSize: 12,
+  //         unselectedFontSize: 11,
+  //         elevation: 0,
+  //         items: const [
+  //           BottomNavigationBarItem(
+  //             icon: Icon(Icons.dashboard_outlined),
+  //             activeIcon: Icon(Icons.dashboard),
+  //             label: 'Dashboard',
+  //           ),
+  //           BottomNavigationBarItem(
+  //             icon: Icon(Icons.calendar_month_outlined),
+  //             activeIcon: Icon(Icons.calendar_month),
+  //             label: 'Jadwal',
+  //           ),
+  //           BottomNavigationBarItem(
+  //             icon: Icon(Icons.analytics_outlined),
+  //             activeIcon: Icon(Icons.analytics),
+  //             label: 'Statistik',
+  //           ),
+  //           BottomNavigationBarItem(
+  //             icon: Icon(Icons.settings_outlined),
+  //             activeIcon: Icon(Icons.settings),
+  //             label: 'Pengaturan',
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 }

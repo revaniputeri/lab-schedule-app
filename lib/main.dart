@@ -3,7 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard/userDashboard.dart';
 import 'screens/dashboard/adminDashboard.dart';
-import 'firebase_options.dart'; 
+import 'screens/booking_page.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +28,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => const LoginScreen(),
         '/adminDashboard': (context) => const AdminDashboard(),
         '/userDashboard': (context) => const UserDashboard(),
+        '/booking': (context) => const RoomBookingPage(),
       },
     );
   }
