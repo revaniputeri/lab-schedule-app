@@ -174,12 +174,24 @@ class FirebaseService {
   /// Ambil booking berdasarkan status (pending / approved / rejected)
   Future<List<BookingSlot>> getBookingsByStatus(String status) async {
     try {
-      final normalized = status.isEmpty
-          ? status
-          : status[0].toUpperCase() + status.substring(1).toLowerCase();
-      print('[getBookingsByStatus] Querying status = $normalized');
-      Query base = _bookingsCollection.where('status', isEqualTo: normalized);
-      Query ordered = base.orderBy('tanggalBooking', descending: false);
+        final normalizedRaw = status.isEmpty
+            ? status
+            : status[0].toUpperCase() + status.substring(1).toLowerCase();
+        final normalized = normalizedRaw.trim();
+        // Build case-insensitive variants
+        List<String> variants = [normalized, normalized.toLowerCase()];
+        if (normalized.toLowerCase() == 'rejected') {
+          variants.add('Ditolak');
+        } else if (normalized.toLowerCase() == 'approved') {
+          variants.add('Disetujui');
+        } else if (normalized.toLowerCase() == 'pending') {
+          variants.add('Menunggu');
+        }
+        // Remove duplicates and empty
+        variants = variants.where((e) => e.trim().isNotEmpty).toSet().toList();
+        print('[getBookingsByStatus] Querying status variants = ${variants.join(', ')}');
+        Query base = _bookingsCollection.where('status', whereIn: variants);
+        Query ordered = base.orderBy('tanggalBooking', descending: false);
       QuerySnapshot snapshot;
       try {
         snapshot = await ordered.get();
@@ -192,9 +204,12 @@ class FirebaseService {
           rethrow;
         }
       }
-      print('[getBookingsByStatus] Found ${snapshot.docs.length} docs');
+      // Kumpulkan dokumen (sudah mencakup variasi dengan whereIn)
+      final docs = <QueryDocumentSnapshot>[];
+      docs.addAll(snapshot.docs);
+      print('[getBookingsByStatus] Found ${docs.length} docs');
       final List<BookingSlot> list = [];
-      for (var doc in snapshot.docs) {
+      for (var doc in docs) {
         try {
           final data = doc.data() as Map<String, dynamic>;
           final b = BookingSlot.fromMap(data, doc.id);
