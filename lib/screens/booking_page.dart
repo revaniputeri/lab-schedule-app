@@ -25,7 +25,7 @@ class _RoomBookingPageState extends State<RoomBookingPage>
   String? _selectedLabId;
   DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   int _selectedDay = DateTime.now().day;
-  
+
   Map<int, DateAvailability> _monthAvailability = {};
   bool _isLoading = true;
   String? _currentUserId; // Simpan current user ID
@@ -82,13 +82,13 @@ class _RoomBookingPageState extends State<RoomBookingPage>
       _selectedLabId = _labs[0].id;
       await _loadMonthAvailability();
     }
-    
+
     setState(() => _isLoading = false);
   }
 
   Future<void> _loadMonthAvailability() async {
     if (_selectedLabId == null) return;
-    
+
     setState(() => _isLoading = true);
 
     _monthAvailability = await _bookingService.getMonthAvailability(
@@ -96,7 +96,7 @@ class _RoomBookingPageState extends State<RoomBookingPage>
       year: _selectedMonth.year,
       month: _selectedMonth.month,
     );
-    
+
     setState(() => _isLoading = false);
   }
 
@@ -134,14 +134,17 @@ class _RoomBookingPageState extends State<RoomBookingPage>
 
   Future<void> _changeMonth(int delta) async {
     setState(() {
-      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + delta);
+      _selectedMonth = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month + delta,
+      );
     });
     await _loadMonthAvailability();
   }
 
   Future<void> _selectLab(String labId) async {
     if (_selectedLabId == labId) return;
-    
+
     setState(() {
       _selectedLabId = labId;
     });
@@ -176,7 +179,10 @@ class _RoomBookingPageState extends State<RoomBookingPage>
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.event_available, color: Colors.green.shade600),
+              leading: Icon(
+                Icons.event_available,
+                color: Colors.green.shade600,
+              ),
               title: const Text('Sesi Tersedia'),
               trailing: Text(
                 '${availability.availableSesiIds.length}',
@@ -338,9 +344,7 @@ class _RoomBookingPageState extends State<RoomBookingPage>
     final maxWidth = size.width > 600 ? 600.0 : size.width;
 
     if (_isLoading && _labs.isEmpty) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -381,7 +385,7 @@ class _RoomBookingPageState extends State<RoomBookingPage>
                     ),
                   ),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   // Room Selector (dengan slide up animation)
                   SlideTransition(
@@ -403,7 +407,7 @@ class _RoomBookingPageState extends State<RoomBookingPage>
                     ),
                   ),
 
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // Calendar (dengan slide up animation)
                   Expanded(
@@ -429,13 +433,14 @@ class _RoomBookingPageState extends State<RoomBookingPage>
                     ),
                   ),
 
-                const SizedBox(height: 16),
-              ],
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
         ),
       ),
-      bottomNavigationBar: const Navbar(),
+      bottomNavigationBar: Navbar(userRole: 'user', currentIndex: 1),
     );
   }
 
@@ -460,10 +465,7 @@ class _RoomBookingPageState extends State<RoomBookingPage>
             ),
             child: IconButton(
               onPressed: _showNotificationModal,
-              icon: const Icon(
-                Icons.notifications_outlined,
-                size: 24,
-              ),
+              icon: const Icon(Icons.notifications_outlined, size: 24),
               color: Colors.grey.shade700,
             ),
           ),

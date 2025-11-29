@@ -1,32 +1,35 @@
 import 'package:flutter/material.dart';
-import 'screen/booking_page.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'screens/login_screen.dart';
+import 'screens/dashboard/userDashboard.dart';
+import 'screens/dashboard/adminDashboard.dart';
+import 'screens/booking_page.dart';
 import 'firebase_options.dart';
 
 void main() async {
-  // Initialize Firebase sebelum runApp
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  runApp(const LabBookingApp());
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  runApp(const MyApp());
 }
 
-class LabBookingApp extends StatelessWidget {
-  const LabBookingApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lab Booking',
       debugShowCheckedModeBanner: false,
+      title: 'Jadwal Laboratorium',
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-        fontFamily: 'Poppins',
+        colorSchemeSeed: Colors.blueAccent,
       ),
-      home: const RoomBookingPage(),
+      routes: {
+        '/': (context) => const LoginScreen(),
+        '/adminDashboard': (context) => const AdminDashboard(),
+        '/userDashboard': (context) => const UserDashboard(),
+        '/booking': (context) => const RoomBookingPage(),
+      },
     );
   }
 }
