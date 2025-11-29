@@ -138,7 +138,8 @@ class Navbar extends StatelessWidget {
           children: [
             IconButton(
               onPressed: () {
-                Navigator.pushNamed(context, '/profile');
+                // Navigate ke Admin Profile
+                Navigator.pushNamed(context, '/profileAdmin');
               },
               icon: Icon(
                 Icons.person,
@@ -197,7 +198,8 @@ class Navbar extends StatelessWidget {
           children: [
             IconButton(
               onPressed: () {
-                Navigator.pushNamed(context, '/profile');
+                // Navigate ke User Profile
+                Navigator.pushNamed(context, '/profileUser');
               },
               icon: Icon(
                 Icons.person,
