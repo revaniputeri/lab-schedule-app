@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/login_screen.dart';
-import 'firebase_options.dart'; // otomatis dibuat oleh Firebase CLI
+import 'screens/dashboard/userDashboard.dart';
+import 'screens/dashboard/adminDashboard.dart';
+import 'screens/booking_page.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,8 +12,8 @@ void main() async {
   runApp(const MyApp());
 }
 
-class LabBookingApp extends StatelessWidget {
-  const LabBookingApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -23,8 +26,9 @@ class LabBookingApp extends StatelessWidget {
       ),
       routes: {
         '/': (context) => const LoginScreen(),
-        '/adminDashboard': (context) => const Placeholder(),
-        '/userDashboard': (context) => const Placeholder(),
+        '/adminDashboard': (context) => const AdminDashboard(),
+        '/userDashboard': (context) => const UserDashboard(),
+        '/booking': (context) => const RoomBookingPage(),
       },
     );
   }

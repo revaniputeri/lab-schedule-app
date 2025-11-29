@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/firebase_service.dart';
+import '../services/booking_service.dart';
 import '../models/lab.dart';
 import '../models/date_availability.dart';
 import '../widgets/month_selector.dart';
@@ -17,12 +17,12 @@ class RoomBookingPage extends StatefulWidget {
 
 class _RoomBookingPageState extends State<RoomBookingPage> {
   final FirebaseService _firebaseService = FirebaseService();
-  
+
   List<Lab> _labs = [];
   String? _selectedLabId;
   DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   int _selectedDay = DateTime.now().day;
-  
+
   Map<int, DateAvailability> _monthAvailability = {};
   bool _isLoading = true;
 
@@ -34,28 +34,28 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
-    
+
     _labs = await _firebaseService.getAllLabs();
-    
+
     if (_labs.isNotEmpty) {
       _selectedLabId = _labs[0].id;
       await _loadMonthAvailability();
     }
-    
+
     setState(() => _isLoading = false);
   }
 
   Future<void> _loadMonthAvailability() async {
     if (_selectedLabId == null) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     _monthAvailability = await _firebaseService.getMonthAvailability(
       labId: _selectedLabId!,
       year: _selectedMonth.year,
       month: _selectedMonth.month,
     );
-    
+
     setState(() => _isLoading = false);
   }
 
@@ -93,14 +93,17 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
 
   Future<void> _changeMonth(int delta) async {
     setState(() {
-      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + delta);
+      _selectedMonth = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month + delta,
+      );
     });
     await _loadMonthAvailability();
   }
 
   Future<void> _selectLab(String labId) async {
     if (_selectedLabId == labId) return;
-    
+
     setState(() {
       _selectedLabId = labId;
     });
@@ -135,11 +138,17 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.event_available, color: Colors.green.shade600),
+              leading: Icon(
+                Icons.event_available,
+                color: Colors.green.shade600,
+              ),
               title: const Text('Sesi Tersedia'),
               trailing: Text(
                 '${availability.availableSesi}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             ListTile(
@@ -147,7 +156,10 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
               title: const Text('Sesi Terisi'),
               trailing: Text(
                 '${availability.bookedSesi}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -178,15 +190,17 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
 
     if (result == true && _selectedLabId != null) {
       final selectedLab = _labs.firstWhere((lab) => lab.id == _selectedLabId);
-      final selectedDate = DateTime(_selectedMonth.year, _selectedMonth.month, day);
-      
+      final selectedDate = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month,
+        day,
+      );
+
       final bookingResult = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => BookingFormPage(
-            lab: selectedLab,
-            selectedDate: selectedDate,
-          ),
+          builder: (context) =>
+              BookingFormPage(lab: selectedLab, selectedDate: selectedDate),
         ),
       );
 
@@ -198,8 +212,18 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
 
   String _getMonthName(int month) {
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return months[month - 1];
   }
@@ -210,61 +234,67 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
     final maxWidth = size.width > 600 ? 600.0 : size.width;
 
     if (_isLoading && _labs.isEmpty) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      body: SafeArea(
-        child: Center(
-          child: Container(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            child: Column(
-              children: [
-                // Header dengan icon notifikasi
-                _buildHeader(),
-                const SizedBox(height: 8),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF0F4FF), Color(0xFFE8F1FF), Color(0xFFF5F9FF)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Column(
+                children: [
+                  // Header dengan icon notifikasi
+                  _buildHeader(),
+                  const SizedBox(height: 8),
 
-                // Month Selector
-                MonthSelector(
-                  selectedMonth: _selectedMonth,
-                  onMonthChanged: _changeMonth,
-                  isLoading: _isLoading,
-                ),
+                  // Month Selector
+                  MonthSelector(
+                    selectedMonth: _selectedMonth,
+                    onMonthChanged: _changeMonth,
+                    isLoading: _isLoading,
+                  ),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                // Room Selector
-                RoomSelector(
-                  labs: _labs,
-                  selectedLabId: _selectedLabId,
-                  onLabSelected: _selectLab,
-                  isLoading: _isLoading,
-                ),
+                  // Room Selector
+                  RoomSelector(
+                    labs: _labs,
+                    selectedLabId: _selectedLabId,
+                    onLabSelected: _selectLab,
+                    isLoading: _isLoading,
+                  ),
 
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                // Calendar
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : CalendarGrid(
-                          selectedMonth: _selectedMonth,
-                          selectedDay: _selectedDay,
-                          monthAvailability: _monthAvailability,
-                          onDaySelected: _onDaySelected,
-                        ),
-                ),
+                  // Calendar
+                  Expanded(
+                    child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : CalendarGrid(
+                            selectedMonth: _selectedMonth,
+                            selectedDay: _selectedDay,
+                            monthAvailability: _monthAvailability,
+                            onDaySelected: _onDaySelected,
+                          ),
+                  ),
 
-                const SizedBox(height: 16),
-              ],
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
         ),
       ),
-      bottomNavigationBar: const Navbar(),
+      bottomNavigationBar: Navbar(userRole: 'user', currentIndex: 1),
     );
   }
 
@@ -288,10 +318,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
             ),
             child: IconButton(
               onPressed: _showNotificationModal,
-              icon: const Icon(
-                Icons.notifications_outlined,
-                size: 24,
-              ),
+              icon: const Icon(Icons.notifications_outlined, size: 24),
               color: Colors.grey.shade700,
             ),
           ),
