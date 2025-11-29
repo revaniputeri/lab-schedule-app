@@ -7,11 +7,13 @@ import '../services/firebase_service.dart';
 class BookingFormPage extends StatefulWidget {
   final Lab lab;
   final DateTime selectedDate;
+  final String currentUserId;
 
   const BookingFormPage({
     Key? key,
     required this.lab,
     required this.selectedDate,
+    required this.currentUserId,
   }) : super(key: key);
 
   @override
@@ -19,7 +21,7 @@ class BookingFormPage extends StatefulWidget {
 }
 
 class _BookingFormPageState extends State<BookingFormPage> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final BookingService _bookingService = BookingService();
   final TextEditingController _keperluanController = TextEditingController();
 
   List<Sesi> _allSesi = [];
@@ -40,9 +42,9 @@ class _BookingFormPageState extends State<BookingFormPage> {
     setState(() => _isLoading = true);
 
     try {
-      _allSesi = await _firebaseService.getAllSesi();
+      _allSesi = await _bookingService.getAllSesi();
 
-      final bookings = await _firebaseService.getBookingsByLabAndDate(
+      final bookings = await _bookingService.getBookingsByLabAndDate(
         labId: widget.lab.id,
         date: widget.selectedDate,
       );
@@ -142,6 +144,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
     try {
       for (String sesiId in _selectedSesiIds) {
         final bookingData = {
+          'idUser': widget.currentUserId,
           'idLab': widget.lab.id,
           'idSesi': sesiId,
           'keperluanKegiatan': _keperluanController.text.trim(),
