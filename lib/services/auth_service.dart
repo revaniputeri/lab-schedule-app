@@ -34,6 +34,7 @@ class AuthService {
   // REGISTER
   Future<void> registerUser(
     String name,
+    String nim,
     String email,
     String password,
     String role,
@@ -44,6 +45,7 @@ class AuthService {
 
       await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'name': name,
+        'nim': nim,
         'email': email,
         'role': role, // "admin" atau "user"
         'createdAt': FieldValue.serverTimestamp(),
