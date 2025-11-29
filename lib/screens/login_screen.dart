@@ -13,7 +13,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _nimController = TextEditingController();
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _loading = false;
@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
-    _emailController.dispose();
+    _nimController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     setState(() => _loading = true);
     try {
       var userData = await _authService.loginUser(
-        _emailController.text.trim(),
+        _nimController.text.trim(),
         _passwordController.text.trim(),
       );
 
@@ -201,7 +201,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       ),
                       const SizedBox(height: 40),
 
-                      // Email Field
+                      // NIM Field
                       TweenAnimationBuilder<double>(
                         duration: const Duration(milliseconds: 600),
                         tween: Tween(begin: 0.0, end: 1.0),
@@ -227,11 +227,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             ],
                           ),
                           child: TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
+                            controller: _nimController,
+                            keyboardType: TextInputType.number,
                             decoration: InputDecoration(
-                              labelText: 'Email',
-                              hintText: 'nama@email.com',
+                              labelText: 'NIM',
+                              hintText: 'Contoh: 2021010001',
                               prefixIcon: Container(
                                 margin: const EdgeInsets.all(12),
                                 padding: const EdgeInsets.all(8),
@@ -240,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: const Icon(
-                                  Icons.email_outlined,
+                                  Icons.badge_outlined,
                                   color: Color(0xFF4A90E2),
                                   size: 20,
                                 ),
@@ -256,7 +256,15 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                 vertical: 16,
                               ),
                             ),
-                            validator: ValidationHelper.validateEmail,
+                            validator: (val) {
+                              if (val == null || val.isEmpty) {
+                                return 'NIM wajib diisi';
+                              }
+                              if (val.length < 8) {
+                                return 'NIM minimal 8 karakter';
+                              }
+                              return null;
+                            },
                           ),
                         ),
                       ),

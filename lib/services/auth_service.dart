@@ -6,26 +6,37 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // LOGIN
-  Future<Map<String, dynamic>?> loginUser(String email, String password) async {
+  Future<Map<String, dynamic>?> loginUser(String nim, String password) async {
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      // Cari user berdasarkan NIM di Firestore
+      var querySnapshot = await _firestore
+          .collection('users')
+          .where('nim', isEqualTo: nim)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        throw Exception('NIM tidak ditemukan');
+      }
+
+      var userData = querySnapshot.docs.first.data();
+      String email = userData['email'];
+
+      // Login dengan email yang ditemukan
+      await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      var userDoc = await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
-
-      if (userDoc.exists) {
-        return userDoc.data();
-      } else {
-        throw Exception('Data user tidak ditemukan di Firestore');
-      }
+      return userData;
     } catch (e) {
       if (e is FirebaseAuthException) {
-        throw Exception('Login gagal: ${e.code} | ${e.message}');
+        if (e.code == 'wrong-password') {
+          throw Exception('Password salah');
+        } else if (e.code == 'user-not-found') {
+          throw Exception('NIM tidak ditemukan');
+        }
+        throw Exception('Login gagal: ${e.message}');
       }
       throw Exception('Login gagal: $e');
     }
