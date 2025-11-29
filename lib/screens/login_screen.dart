@@ -13,7 +13,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _nimController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _loading = false;
@@ -59,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
-    _nimController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     setState(() => _loading = true);
     try {
       var userData = await _authService.loginUser(
-        _nimController.text.trim(),
+        _usernameController.text.trim(),
         _passwordController.text.trim(),
       );
 
@@ -227,11 +227,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             ],
                           ),
                           child: TextFormField(
-                            controller: _nimController,
-                            keyboardType: TextInputType.number,
+                            controller: _usernameController,
+                            keyboardType: TextInputType.text,
                             decoration: InputDecoration(
-                              labelText: 'NIM',
-                              hintText: 'Contoh: 2021010001',
+                              labelText: 'Username',
                               prefixIcon: Container(
                                 margin: const EdgeInsets.all(12),
                                 padding: const EdgeInsets.all(8),
@@ -258,10 +257,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             ),
                             validator: (val) {
                               if (val == null || val.isEmpty) {
-                                return 'NIM wajib diisi';
-                              }
-                              if (val.length < 8) {
-                                return 'NIM minimal 8 karakter';
+                                return 'Username wajib diisi';
                               }
                               return null;
                             },
