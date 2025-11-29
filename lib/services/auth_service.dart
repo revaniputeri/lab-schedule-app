@@ -6,26 +6,67 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // LOGIN
-  Future<Map<String, dynamic>?> loginUser(String email, String password) async {
+  Future<Map<String, dynamic>?> loginUser(String username, String password) async {
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      String email;
+      Map<String, dynamic>? userData;
 
-      var userDoc = await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
+      // Cek apakah input adalah email (untuk admin)
+      if (username.contains('@')) {
+        // Login langsung dengan email
+        email = username;
+        
+        await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
 
-      if (userDoc.exists) {
-        return userDoc.data();
+        // Ambil data user dari Firestore
+        var currentUser = _auth.currentUser;
+        if (currentUser != null) {
+          var userDoc = await _firestore
+              .collection('users')
+              .doc(currentUser.uid)
+              .get();
+          
+          if (userDoc.exists) {
+            userData = userDoc.data();
+          }
+        }
       } else {
-        throw Exception('Data user tidak ditemukan di Firestore');
+        // Input adalah NIM (untuk mahasiswa)
+        // Cari user berdasarkan NIM di Firestore
+        var querySnapshot = await _firestore
+            .collection('users')
+            .where('nim', isEqualTo: username)
+            .limit(1)
+            .get();
+
+        if (querySnapshot.docs.isEmpty) {
+          throw Exception('Username tidak ditemukan');
+        }
+
+        userData = querySnapshot.docs.first.data();
+        email = userData['email'];
+
+        // Login dengan email yang ditemukan
+        await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
       }
+
+      return userData;
     } catch (e) {
       if (e is FirebaseAuthException) {
-        throw Exception('Login gagal: ${e.code} | ${e.message}');
+        if (e.code == 'wrong-password') {
+          throw Exception('Password salah');
+        } else if (e.code == 'user-not-found') {
+          throw Exception('Username tidak ditemukan');
+        } else if (e.code == 'invalid-email') {
+          throw Exception('Format email tidak valid');
+        }
+        throw Exception('Login gagal: ${e.message}');
       }
       throw Exception('Login gagal: $e');
     }
