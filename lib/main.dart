@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard/userDashboard.dart';
 import 'screens/dashboard/adminDashboard.dart';
@@ -9,6 +10,12 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Init locale data for Indonesian date formatting used in dashboard
+  try {
+    await initializeDateFormatting('id_ID');
+  } catch (e) {
+    debugPrint('Locale init failed: $e');
+  }
   runApp(const MyApp());
 }
 

@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:jadwal_lab/services/booking_service.dart';
+import 'package:jadwal_lab/models/user.dart';
+import 'package:jadwal_lab/models/bookingSlot.dart';
+import 'package:intl/intl.dart';
 import 'package:jadwal_lab/widgets/navbar.dart';
 
 // File: adminDashboard.dart
@@ -17,74 +22,23 @@ class _AdminDashboardState extends State<AdminDashboard>
   late AnimationController _slideController;
   late TabController _tabController;
 
-  int _selectedIndex = 0;
+  final _service = FirebaseService();
+  bool _isLoading = false;
+  String? _error;
 
-  // Sample data - Pending Bookings
-  final List<Map<String, dynamic>> pendingBookings = [
-    {
-      'id': 'BK001',
-      'student': 'Ahmad Fauzi',
-      'nim': '123456789',
-      'lab': 'Lab Komputer 1',
-      'date': '28 November 2025',
-      'time': '09:00 - 11:00',
-      'purpose': 'Praktikum PBL',
-      'submittedAt': '2 jam yang lalu',
-      'avatar': 'A',
-      'color': Colors.blue,
-    },
-    {
-      'id': 'BK002',
-      'student': 'Siti Nurhaliza',
-      'nim': '987654321',
-      'lab': 'Lab Jaringan',
-      'date': '29 November 2025',
-      'time': '13:00 - 15:00',
-      'purpose': 'Tugas Akhir',
-      'submittedAt': '5 jam yang lalu',
-      'avatar': 'S',
-      'color': Colors.purple,
-    },
-    {
-      'id': 'BK003',
-      'student': 'Budi Santoso',
-      'nim': '456789123',
-      'lab': 'Lab Database',
-      'date': '30 November 2025',
-      'time': '10:00 - 12:00',
-      'purpose': 'Praktikum Mandiri',
-      'submittedAt': '1 hari yang lalu',
-      'avatar': 'B',
-      'color': Colors.orange,
-    },
-  ];
+  List<BookingSlot> _pending = [];
+  List<BookingSlot> _approved = [];
+  List<BookingSlot> _rejected = [];
+  // Cache user data (id -> AppUser)
+  Map<String, AppUser> _userCache = {};
 
-  // Sample data - Approved Bookings
-  final List<Map<String, dynamic>> approvedBookings = [
-    {
-      'id': 'BK004',
-      'student': 'Dewi Lestari',
-      'lab': 'Lab Multimedia',
-      'date': '27 November 2025',
-      'time': '14:00 - 16:00',
-      'approvedAt': 'Hari ini, 10:00',
-    },
-    {
-      'id': 'BK005',
-      'student': 'Eko Prasetyo',
-      'lab': 'Lab Komputer 2',
-      'date': '28 November 2025',
-      'time': '08:00 - 10:00',
-      'approvedAt': 'Kemarin, 15:30',
-    },
-  ];
-
-  // Statistics
-  final Map<String, dynamic> stats = {
-    'pending': 3,
-    'approved': 15,
-    'rejected': 2,
-    'total': 20,
+  // Hapus dummy: pendingBookings, approvedBookings, stats
+  // Ganti statistics dihitung dari data real:
+  Map<String, int> stats = {
+    'pending': 0,
+    'approved': 0,
+    'rejected': 0,
+    'total': 0,
   };
 
   @override
@@ -102,6 +56,50 @@ class _AdminDashboardState extends State<AdminDashboard>
     )..forward();
 
     _tabController = TabController(length: 3, vsync: this);
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final pending = await _service.getBookingsByStatus('pending');
+      final approved = await _service.getBookingsByStatus('approved');
+      final rejected = await _service.getBookingsByStatus('rejected');
+
+      // Fetch users for all bookings (collect unique ids)
+      final allIds = <String>{};
+      for (var b in pending) allIds.add(b.idUser ?? '');
+      for (var b in approved) allIds.add(b.idUser ?? '');
+      for (var b in rejected) allIds.add(b.idUser ?? '');
+      Map<String, AppUser> userMap = {};
+      if (allIds.isNotEmpty) {
+        userMap = await _service.getUsersByIds(allIds.where((e) => e.isNotEmpty).toList());
+      }
+
+      setState(() {
+        _pending = pending;
+        _approved = approved;
+        _rejected = rejected;
+        _userCache = userMap;
+        stats = {
+          'pending': _pending.length,
+            'approved': _approved.length,
+            'rejected': _rejected.length,
+            'total': _pending.length + _approved.length + _rejected.length,
+        };
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Gagal memuat data: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -129,15 +127,26 @@ class _AdminDashboardState extends State<AdminDashboard>
             child: Column(
               children: [
                 _buildAppBar(),
-                _buildStatsCards(),
+                if (_isLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: LinearProgressIndicator(),
+                  )
+                else if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(_error!, style: TextStyle(color: Colors.red)),
+                  )
+                else
+                  _buildStatsCards(),
                 _buildTabBar(),
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildPendingList(),
-                      _buildApprovedList(),
-                      _buildRejectedList(),
+                      _buildPendingList(),     // pakai _pending
+                      _buildApprovedList(),    // pakai _approved
+                      _buildRejectedList(),    // pakai _rejected
                     ],
                   ),
                 ),
@@ -413,27 +422,78 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   Widget _buildPendingList() {
+    if (_pending.isEmpty && !_isLoading) {
+      return _emptyState('Belum ada booking pending');
+    }
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       physics: const BouncingScrollPhysics(),
-      itemCount: pendingBookings.length,
+      itemCount: _pending.length,
       itemBuilder: (context, index) {
+        final b = _pending[index];
         return TweenAnimationBuilder(
-          duration: Duration(milliseconds: 400 + (index * 100)),
+          duration: Duration(milliseconds: 400 + (index * 80)),
           tween: Tween<double>(begin: 0, end: 1),
-          builder: (context, double value, child) {
-            return Transform.translate(
-              offset: Offset(50 * (1 - value), 0),
-              child: Opacity(opacity: value, child: child),
-            );
-          },
-          child: _buildPendingBookingCard(pendingBookings[index]),
+          builder: (c, val, child) => Transform.translate(
+            offset: Offset(50 * (1 - val), 0),
+            child: Opacity(opacity: val, child: child),
+          ),
+          child: _buildPendingBookingCard(b),
         );
       },
     );
   }
 
-  Widget _buildPendingBookingCard(Map<String, dynamic> booking) {
+  Widget _buildApprovedList() {
+    if (_approved.isEmpty && !_isLoading) {
+      return _emptyState('Belum ada booking disetujui');
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: _approved.length,
+      itemBuilder: (context, i) => _buildApprovedCard(_approved[i]),
+    );
+  }
+
+  Widget _buildRejectedList() {
+    if (_rejected.isEmpty && !_isLoading) {
+      return _emptyState('Belum ada booking ditolak');
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: _rejected.length,
+      itemBuilder: (context, i) => _buildRejectedCard(_rejected[i]),
+    );
+  }
+
+  Widget _emptyState(String msg) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.inbox_outlined, size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 15),
+            Text(msg, style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
+          TextButton(onPressed: _loadAll, child: const Text('Refresh')),
+        ],
+      ),
+    );
+  }
+
+// ADAPT: ubah card agar menerima BookingSlot bukan Map
+  Widget _buildPendingBookingCard(BookingSlot b) {
+    final labName = b.lab?.namaLab ?? 'Lab';
+    final sesiName = b.sesi?.sesi ?? '';
+    final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
+    final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
+    final color = Colors.blue; // bisa dipilih berdasarkan lab / random
+    final createdAt = b.createdAt ?? b.tanggalBooking;
+    final diff = DateTime.now().difference(createdAt);
+    final submittedAt = _relative(diff);
+    final user = b.idUser != null ? _userCache[b.idUser!] : null;
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       decoration: BoxDecoration(
@@ -441,7 +501,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: booking['color'].withOpacity(0.1),
+            color: color.withOpacity(0.15),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -455,18 +515,15 @@ class _AdminDashboardState extends State<AdminDashboard>
               children: [
                 Row(
                   children: [
-                    Hero(
-                      tag: 'avatar_${booking['id']}',
-                      child: CircleAvatar(
-                        radius: 28,
-                        backgroundColor: booking['color'].withOpacity(0.2),
-                        child: Text(
-                          booking['avatar'],
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: booking['color'],
-                          ),
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: color.withOpacity(0.15),
+                      child: Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: color,
                         ),
                       ),
                     ),
@@ -475,36 +532,28 @@ class _AdminDashboardState extends State<AdminDashboard>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            booking['student'],
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade800,
-                            ),
-                          ),
+                            Text(userName,
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade800)),
                           const SizedBox(height: 4),
-                          Text(
-                            'NIM: ${booking['nim']}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
+                            Text('NIM: $nim',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600)),
                         ],
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.orange.shade50,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        booking['id'],
+                        b.status,
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -523,33 +572,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                   ),
                   child: Column(
                     children: [
-                      _buildInfoRow(
-                        Icons.computer,
-                        'Lab',
-                        booking['lab'],
-                        Colors.blue,
-                      ),
+                      _buildInfoRow(Icons.computer, 'Lab', labName, Colors.blue),
                       const SizedBox(height: 8),
-                      _buildInfoRow(
-                        Icons.calendar_today,
-                        'Tanggal',
-                        booking['date'],
-                        Colors.green,
-                      ),
+                      _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
                       const SizedBox(height: 8),
-                      _buildInfoRow(
-                        Icons.access_time,
-                        'Waktu',
-                        booking['time'],
-                        Colors.orange,
-                      ),
+                      _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
                       const SizedBox(height: 8),
-                      _buildInfoRow(
-                        Icons.description,
-                        'Keperluan',
-                        booking['purpose'],
-                        Colors.purple,
-                      ),
+                      _buildInfoRow(Icons.description, 'Keperluan', b.keperluanKegiatan.isEmpty ? '-' : b.keperluanKegiatan, Colors.purple),
                     ],
                   ),
                 ),
@@ -559,7 +588,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                     Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
                     const SizedBox(width: 5),
                     Text(
-                      'Diajukan ${booking['submittedAt']}',
+                      'Diajukan $submittedAt',
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.grey.shade500,
@@ -571,6 +600,7 @@ class _AdminDashboardState extends State<AdminDashboard>
               ],
             ),
           ),
+          // Tombol aksi
           Container(
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
@@ -582,70 +612,16 @@ class _AdminDashboardState extends State<AdminDashboard>
             child: Row(
               children: [
                 Expanded(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _showRejectDialog(booking),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(20),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.close,
-                              color: Colors.red.shade600,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Tolak',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  child: InkWell(
+                    onTap: () => _showRejectDialog(b),
+                    child: _actionBtn(Icons.close, 'Tolak', Colors.red.shade600),
                   ),
                 ),
                 Container(width: 1, height: 50, color: Colors.grey.shade300),
                 Expanded(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _showApproveDialog(booking),
-                      borderRadius: const BorderRadius.only(
-                        bottomRight: Radius.circular(20),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.check,
-                              color: Colors.green.shade600,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Setujui',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  child: InkWell(
+                    onTap: () => _showApproveDialog(b),
+                    child: _actionBtn(Icons.check, 'Setujui', Colors.green.shade600),
                   ),
                 ),
               ],
@@ -656,34 +632,46 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value, Color color) {
+  Widget _actionBtn(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value, Color iconColor) {
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: iconColor.withOpacity(0.12),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, size: 16, color: color),
+          child: Icon(icon, size: 16, color: iconColor),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-              ),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade800,
-                ),
-              ),
+              Text(label,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade800)),
             ],
           ),
         ),
@@ -691,18 +679,41 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  Widget _buildApprovedList() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      physics: const BouncingScrollPhysics(),
-      itemCount: approvedBookings.length,
-      itemBuilder: (context, index) {
-        return _buildApprovedCard(approvedBookings[index]);
-      },
-    );
+  String _relative(Duration d) {
+    if (d.inMinutes < 1) return 'baru saja';
+    if (d.inMinutes < 60) return '${d.inMinutes} menit yang lalu';
+    if (d.inHours < 24) return '${d.inHours} jam yang lalu';
+    return '${d.inDays} hari yang lalu';
   }
 
-  Widget _buildApprovedCard(Map<String, dynamic> booking) {
+  // Safe Indonesian date formatter with fallback if locale not initialized
+  String _formatDateIndo(DateTime dt, {bool full = false}) {
+    try {
+      final pattern = full ? 'd MMMM yyyy' : 'd MMM yyyy';
+      // Use intl DateFormat only if available
+      return DateFormat(pattern, 'id_ID').format(dt);
+    } catch (e) {
+      // Fallback: manual mapping month
+      const monthsFull = [
+        'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'
+      ];
+      const monthsShort = [
+        'Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'
+      ];
+      final mIndex = dt.month - 1;
+      final monthStr = full ? monthsFull[mIndex] : monthsShort[mIndex];
+      return '${dt.day} $monthStr ${dt.year}';
+    }
+  }
+
+// Approved & Rejected card adaptasi
+  Widget _buildApprovedCard(BookingSlot b) {
+    final labName = b.lab?.namaLab ?? 'Lab';
+    final dateStr = _formatDateIndo(b.tanggalBooking);
+    final timeStr = b.sesi?.waktu ?? '';
+    final user = b.idUser != null ? _userCache[b.idUser!] : null;
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       padding: const EdgeInsets.all(16),
@@ -726,44 +737,26 @@ class _AdminDashboardState extends State<AdminDashboard>
               color: Colors.green.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              Icons.check_circle,
-              color: Colors.green.shade600,
-              size: 32,
-            ),
+            child: Icon(Icons.check_circle, color: Colors.green.shade600, size: 32),
           ),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  booking['student'],
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
+                Text(userName,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800)),
                 const SizedBox(height: 4),
-                Text(
-                  '${booking['lab']} • ${booking['date']}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
+                Text('$labName • $dateStr', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                 const SizedBox(height: 4),
-                Text(
-                  booking['time'],
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                ),
+                Text(timeStr, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                 const SizedBox(height: 6),
-                Text(
-                  'Disetujui ${booking['approvedAt']}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.green.shade700,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+                Text('NIM: $nim', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                const SizedBox(height: 4),
+                Text('Disetujui', style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontStyle: FontStyle.italic)),
               ],
             ),
           ),
@@ -772,18 +765,195 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  Widget _buildRejectedList() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inbox_outlined, size: 80, color: Colors.grey.shade300),
-          const SizedBox(height: 15),
-          Text(
-            'Tidak ada booking yang ditolak',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+  Widget _buildRejectedCard(BookingSlot b) {
+    final labName = b.lab?.namaLab ?? 'Lab';
+    final dateStr = _formatDateIndo(b.tanggalBooking);
+    final user = b.idUser != null ? _userCache[b.idUser!] : null;
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.red.shade200, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.cancel, color: Colors.red.shade600, size: 32),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(userName,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800)),
+                const SizedBox(height: 4),
+                Text('$labName • $dateStr',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                const SizedBox(height: 4),
+                Text('NIM: $nim', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                const SizedBox(height: 4),
+                Text('Ditolak', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+// Dialog approve / reject modifikasi
+  void _showApproveDialog(BookingSlot b) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.check_circle, color: Colors.green.shade600),
+            ),
+            const SizedBox(width: 12),
+            const Text('Setujui Booking?'),
+          ],
+        ),
+        content: Builder(builder: (context) {
+          final user = b.idUser != null ? _userCache[b.idUser!] : null;
+          final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+          final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+          return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
+        }),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Batal')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final ok = await _service.updateBookingStatus(b.id, 'approved');
+              if (ok) {
+                _showSuccessSnackbar('Booking disetujui');
+                _loadAll();
+              } else {
+                _showErrorSnackbar('Gagal update status');
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade600),
+            child: const Text('Setujui'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectDialog(BookingSlot b) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.cancel, color: Colors.red.shade600),
+            ),
+            const SizedBox(width: 12),
+            const Text('Tolak Booking?'),
+          ],
+        ),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: InputDecoration(
+            labelText: 'Alasan penolakan (opsional)',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Batal')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final ok = await _service.updateBookingStatus(b.id, 'rejected');
+              // (opsional) simpan alasan ke field 'rejectReason'
+              if (ok) {
+                if (controller.text.trim().isNotEmpty) {
+                  await FirebaseFirestore.instance
+                      .collection('bookingSlots')
+                      .doc(b.id)
+                      .update({'rejectReason': controller.text.trim()});
+                }
+                _showSuccessSnackbar('Booking ditolak');
+                _loadAll();
+              } else {
+                _showErrorSnackbar('Gagal update status');
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600),
+            child: const Text('Tolak'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 10),
+            Text(message),
+          ],
+        ),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 10),
+            Text(message),
+          ],
+        ),
+        backgroundColor: Colors.red.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -834,207 +1004,4 @@ class _AdminDashboardState extends State<AdminDashboard>
       ),
     );
   }
-
-  void _showApproveDialog(Map<String, dynamic> booking) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.check_circle, color: Colors.green.shade600),
-            ),
-            const SizedBox(width: 12),
-            const Text('Setujui Booking?'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Anda akan menyetujui booking untuk:'),
-            const SizedBox(height: 10),
-            Text(
-              '${booking['student']}\n${booking['lab']}\n${booking['date']} • ${booking['time']}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Batal', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessSnackbar('Booking berhasil disetujui!');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green.shade600,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('Setujui'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showRejectDialog(Map<String, dynamic> booking) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.cancel, color: Colors.red.shade600),
-            ),
-            const SizedBox(width: 12),
-            const Text('Tolak Booking?'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Anda akan menolak booking untuk:'),
-            const SizedBox(height: 10),
-            Text(
-              '${booking['student']}\n${booking['lab']}\n${booking['date']} • ${booking['time']}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
-              ),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Alasan penolakan (opsional)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Batal', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessSnackbar('Booking ditolak');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade600,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('Tolak'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSuccessSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 10),
-            Text(message),
-          ],
-        ),
-        backgroundColor: Colors.green.shade600,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  // Widget _buildBottomNav() {
-  //   return Container(
-  //     decoration: BoxDecoration(
-  //       color: Colors.white,
-  //       boxShadow: [
-  //         BoxShadow(
-  //           color: Colors.black.withOpacity(0.1),
-  //           blurRadius: 20,
-  //           offset: const Offset(0, -5),
-  //         ),
-  //       ],
-  //       borderRadius: const BorderRadius.only(
-  //         topLeft: Radius.circular(30),
-  //         topRight: Radius.circular(30),
-  //       ),
-  //     ),
-  //     child: ClipRRect(
-  //       borderRadius: const BorderRadius.only(
-  //         topLeft: Radius.circular(30),
-  //         topRight: Radius.circular(30),
-  //       ),
-  //       child: BottomNavigationBar(
-  //         currentIndex: _selectedIndex,
-  //         onTap: (index) {
-  //           setState(() {
-  //             _selectedIndex = index;
-  //           });
-  //         },
-  //         type: BottomNavigationBarType.fixed,
-  //         backgroundColor: Colors.white,
-  //         selectedItemColor: Colors.deepPurple.shade600,
-  //         unselectedItemColor: Colors.grey.shade400,
-  //         selectedFontSize: 12,
-  //         unselectedFontSize: 11,
-  //         elevation: 0,
-  //         items: const [
-  //           BottomNavigationBarItem(
-  //             icon: Icon(Icons.dashboard_outlined),
-  //             activeIcon: Icon(Icons.dashboard),
-  //             label: 'Dashboard',
-  //           ),
-  //           BottomNavigationBarItem(
-  //             icon: Icon(Icons.calendar_month_outlined),
-  //             activeIcon: Icon(Icons.calendar_month),
-  //             label: 'Jadwal',
-  //           ),
-  //           BottomNavigationBarItem(
-  //             icon: Icon(Icons.analytics_outlined),
-  //             activeIcon: Icon(Icons.analytics),
-  //             label: 'Statistik',
-  //           ),
-  //           BottomNavigationBarItem(
-  //             icon: Icon(Icons.settings_outlined),
-  //             activeIcon: Icon(Icons.settings),
-  //             label: 'Pengaturan',
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
 }
