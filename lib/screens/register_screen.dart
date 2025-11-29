@@ -14,6 +14,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _nimController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String _role = 'user';
@@ -63,6 +64,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     _fadeController.dispose();
     _slideController.dispose();
     _nameController.dispose();
+    _nimController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -75,6 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     try {
       await _authService.registerUser(
         _nameController.text.trim(),
+        _nimController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text.trim(),
         _role,
@@ -239,6 +242,26 @@ class _RegisterScreenState extends State<RegisterScreen>
                         validator: (val) => val == null || val.isEmpty
                             ? 'Nama wajib diisi'
                             : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // NIM Field
+                      _buildAnimatedTextField(
+                        controller: _nimController,
+                        label: 'NIM',
+                        hint: 'Contoh: 2021010001',
+                        icon: Icons.badge_outlined,
+                        keyboardType: TextInputType.number,
+                        delay: 50,
+                        validator: (val) {
+                          if (val == null || val.isEmpty) {
+                            return 'NIM wajib diisi';
+                          }
+                          if (val.length < 8) {
+                            return 'NIM minimal 8 karakter';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
 
