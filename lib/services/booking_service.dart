@@ -4,6 +4,7 @@ import '../models/lab.dart';
 import '../models/sesi.dart';
 import '../models/bookingSlot.dart';
 import '../models/date_availability.dart';
+import '../models/user.dart';
 
 class BookingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -12,6 +13,7 @@ class BookingService {
   CollectionReference get _labsCollection => _firestore.collection('laboratorium');
   CollectionReference get _sesiCollection => _firestore.collection('sesi');
   CollectionReference get _bookingsCollection => _firestore.collection('bookingSlots');
+  CollectionReference get _usersCollection => _firestore.collection('users');
 
   // ==================== LAB METHODS ====================
   
@@ -157,12 +159,131 @@ class BookingService {
   /// Update status booking
   Future<bool> updateBookingStatus(String bookingId, String status) async {
     try {
-      await _bookingsCollection.doc(bookingId).update({'status': status});
+      // Normalisasi status: kapital huruf pertama lainnya lowercase agar konsisten dengan data Firestore ("Approved", "Pending", "Rejected")
+      final normalized = status.isEmpty
+          ? status
+          : status[0].toUpperCase() + status.substring(1).toLowerCase();
+      await _bookingsCollection.doc(bookingId).update({'status': normalized});
       return true;
     } catch (e) {
       print('Error updating booking status: $e');
       return false;
     }
+  }
+
+  /// Ambil booking berdasarkan status (pending / approved / rejected)
+  Future<List<BookingSlot>> getBookingsByStatus(String status) async {
+    try {
+        final normalizedRaw = status.isEmpty
+            ? status
+            : status[0].toUpperCase() + status.substring(1).toLowerCase();
+        final normalized = normalizedRaw.trim();
+        // Build case-insensitive variants
+        List<String> variants = [normalized, normalized.toLowerCase()];
+        if (normalized.toLowerCase() == 'rejected') {
+          variants.add('Ditolak');
+        } else if (normalized.toLowerCase() == 'approved') {
+          variants.add('Disetujui');
+        } else if (normalized.toLowerCase() == 'pending') {
+          variants.add('Menunggu');
+        }
+        // Remove duplicates and empty
+        variants = variants.where((e) => e.trim().isNotEmpty).toSet().toList();
+        print('[getBookingsByStatus] Querying status variants = ${variants.join(', ')}');
+        Query base = _bookingsCollection.where('status', whereIn: variants);
+        Query ordered = base.orderBy('tanggalBooking', descending: false);
+      QuerySnapshot snapshot;
+      try {
+        snapshot = await ordered.get();
+      } on FirebaseException catch (e) {
+        // Jika index belum dibuat untuk kombinasi where + orderBy
+        if (e.code == 'failed-precondition') {
+          print('[getBookingsByStatus] Index missing, retry without orderBy. Firestore message: ${e.message}');
+          snapshot = await base.get();
+        } else {
+          rethrow;
+        }
+      }
+      // Kumpulkan dokumen (sudah mencakup variasi dengan whereIn)
+      final docs = <QueryDocumentSnapshot>[];
+      docs.addAll(snapshot.docs);
+      print('[getBookingsByStatus] Found ${docs.length} docs');
+      final List<BookingSlot> list = [];
+      for (var doc in docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          final b = BookingSlot.fromMap(data, doc.id);
+          if (b.idLab.isNotEmpty) {
+            b.lab = await getLabById(b.idLab);
+          }
+            if (b.idSesi.isNotEmpty) {
+            b.sesi = await getSesiById(b.idSesi);
+          }
+          list.add(b);
+        } catch (inner) {
+          print('[getBookingsByStatus] Error mapping doc ${doc.id}: $inner');
+        }
+      }
+      return list;
+    } catch (e) {
+      print('Error getBookingsByStatus($status): $e');
+      return [];
+    }
+  }
+
+  /// Ambil semua booking sekaligus lalu kelompokkan di client (opsional)
+  Future<List<BookingSlot>> getAllBookings() async {
+    try {
+      final snapshot = await _bookingsCollection.get();
+      final List<BookingSlot> list = [];
+      for (var doc in snapshot.docs) {
+        final b = BookingSlot.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+        b.lab = await getLabById(b.idLab);
+        b.sesi = await getSesiById(b.idSesi);
+        list.add(b);
+      }
+      return list;
+    } catch (e) {
+      print('Error getAllBookings: $e');
+      return [];
+    }
+  }
+
+  /// Ambil user tunggal
+  Future<AppUser?> getUserById(String userId) async {
+    if (userId.isEmpty) return null;
+    try {
+      final doc = await _usersCollection.doc(userId).get();
+      if (!doc.exists) return null;
+      return AppUser.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    } catch (e) {
+      print('Error getUserById($userId): $e');
+      return null;
+    }
+  }
+
+  /// Ambil banyak user sekaligus (batch by 10 dokumen karena batas whereIn)
+  Future<Map<String, AppUser>> getUsersByIds(List<String> ids) async {
+    final Map<String, AppUser> result = {};
+    final unique = ids.where((e) => e.isNotEmpty).toSet().toList();
+    const int batchSize = 10; // Firestore whereIn maksimum 10
+    for (int i = 0; i < unique.length; i += batchSize) {
+      final slice = unique.sublist(i, i + batchSize > unique.length ? unique.length : i + batchSize);
+      try {
+        final snap = await _usersCollection.where(FieldPath.documentId, whereIn: slice).get();
+        for (var doc in snap.docs) {
+          try {
+            final user = AppUser.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+            result[user.id] = user;
+          } catch (e) {
+            print('Error mapping user ${doc.id}: $e');
+          }
+        }
+      } catch (e) {
+        print('Error batch get users (${slice.join(',')}): $e');
+      }
+    }
+    return result;
   }
 
   // ==================== AVAILABILITY METHODS ====================
