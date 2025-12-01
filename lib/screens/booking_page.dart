@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Tambahkan import ini
 import '../services/booking_service.dart';
 import '../models/lab.dart';
 import '../models/date_availability.dart';
@@ -15,8 +16,10 @@ class RoomBookingPage extends StatefulWidget {
   State<RoomBookingPage> createState() => _RoomBookingPageState();
 }
 
-class _RoomBookingPageState extends State<RoomBookingPage> {
-  final FirebaseService _firebaseService = FirebaseService();
+class _RoomBookingPageState extends State<RoomBookingPage>
+    with TickerProviderStateMixin {
+  final BookingService _bookingService = BookingService();
+  final FirebaseAuth _auth = FirebaseAuth.instance; // Tambahkan FirebaseAuth
 
   List<Lab> _labs = [];
   String? _selectedLabId;
@@ -25,17 +28,55 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
 
   Map<int, DateAvailability> _monthAvailability = {};
   bool _isLoading = true;
+  String? _currentUserId; // Simpan current user ID
+
+  // Animation controllers
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
 
   @override
   void initState() {
     super.initState();
+    
+    // Setup animation controllers
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..forward();
+
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+
+    _getCurrentUser();
     _loadInitialData();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  // Method untuk mendapatkan current user
+  void _getCurrentUser() {
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) {
+      setState(() {
+        _currentUserId = currentUser.uid;
+      });
+      print('Current User ID: $_currentUserId'); // Debug
+    } else {
+      print('No user logged in'); // Debug
+    }
   }
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
 
-    _labs = await _firebaseService.getAllLabs();
+    _labs = await _bookingService.getAllLabs();
 
     if (_labs.isNotEmpty) {
       _selectedLabId = _labs[0].id;
@@ -50,7 +91,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
 
     setState(() => _isLoading = true);
 
-    _monthAvailability = await _firebaseService.getMonthAvailability(
+    _monthAvailability = await _bookingService.getMonthAvailability(
       labId: _selectedLabId!,
       year: _selectedMonth.year,
       month: _selectedMonth.month,
@@ -144,7 +185,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
               ),
               title: const Text('Sesi Tersedia'),
               trailing: Text(
-                '${availability.availableSesi}',
+                '${availability.availableSesiIds.length}',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -155,7 +196,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
               leading: Icon(Icons.event_busy, color: Colors.red.shade600),
               title: const Text('Sesi Terisi'),
               trailing: Text(
-                '${availability.bookedSesi}',
+                '${availability.bookedSesiIds.length}',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -182,6 +223,40 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                     style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
+              )
+            else if (availability.isPast)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: null,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Tanggal Sudah Lewat',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: null,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Tidak Tersedia',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
               ),
           ],
         ),
@@ -189,41 +264,76 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
     );
 
     if (result == true && _selectedLabId != null) {
-      final selectedLab = _labs.firstWhere((lab) => lab.id == _selectedLabId);
-      final selectedDate = DateTime(
-        _selectedMonth.year,
-        _selectedMonth.month,
-        day,
-      );
+      await _navigateToBookingForm(day);
+    }
+  }
 
-      final bookingResult = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              BookingFormPage(lab: selectedLab, selectedDate: selectedDate),
+  Future<void> _navigateToBookingForm(int day) async {
+    // Cek apakah user sudah login
+    if (_currentUserId == null) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
+    final selectedLab = _labs.firstWhere((lab) => lab.id == _selectedLabId);
+    final selectedDate = DateTime(
+      _selectedMonth.year,
+      _selectedMonth.month,
+      day,
+    );
+
+    print('Navigating to BookingForm with:'); // Debug
+    print('User ID: $_currentUserId'); // Debug
+    print('Lab: ${selectedLab.namaLab}'); // Debug
+    print('Date: $selectedDate'); // Debug
+
+    final bookingResult = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookingFormPage(
+          lab: selectedLab, 
+          selectedDate: selectedDate, 
+          currentUserId: _currentUserId!, // Gunakan currentUserId yang sudah disimpan
         ),
-      );
+      ),
+    );
 
-      if (bookingResult == true) {
-        await _loadMonthAvailability();
+    if (bookingResult == true) {
+      // Refresh data setelah booking berhasil
+      await _loadMonthAvailability();
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Booking berhasil dibuat!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     }
   }
 
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Login Diperlukan'),
+        content: const Text('Anda harus login terlebih dahulu untuk melakukan booking.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _getMonthName(int month) {
     const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
     return months[month - 1];
   }
@@ -252,39 +362,75 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
               constraints: BoxConstraints(maxWidth: maxWidth),
               child: Column(
                 children: [
-                  // Header dengan icon notifikasi
-                  _buildHeader(),
+                  // Header dengan icon notifikasi (dengan fade animation)
+                  FadeTransition(
+                    opacity: _fadeController,
+                    child: _buildHeader(),
+                  ),
                   const SizedBox(height: 8),
 
-                  // Month Selector
-                  MonthSelector(
-                    selectedMonth: _selectedMonth,
-                    onMonthChanged: _changeMonth,
-                    isLoading: _isLoading,
+                  // Month Selector (dengan slide up animation)
+                  SlideTransition(
+                    position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+                        .animate(
+                          CurvedAnimation(parent: _slideController, curve: Curves.easeOut),
+                        ),
+                    child: FadeTransition(
+                      opacity: _fadeController,
+                      child: MonthSelector(
+                        selectedMonth: _selectedMonth,
+                        onMonthChanged: _changeMonth,
+                        isLoading: _isLoading,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 20),
 
-                  // Room Selector
-                  RoomSelector(
-                    labs: _labs,
-                    selectedLabId: _selectedLabId,
-                    onLabSelected: _selectLab,
-                    isLoading: _isLoading,
+                  // Room Selector (dengan slide up animation)
+                  SlideTransition(
+                    position: Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero)
+                        .animate(
+                          CurvedAnimation(
+                            parent: _slideController,
+                            curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+                          ),
+                        ),
+                    child: FadeTransition(
+                      opacity: _fadeController,
+                      child: RoomSelector(
+                        labs: _labs,
+                        selectedLabId: _selectedLabId,
+                        onLabSelected: _selectLab,
+                        isLoading: _isLoading,
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 24),
 
-                  // Calendar
+                  // Calendar (dengan slide up animation)
                   Expanded(
-                    child: _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : CalendarGrid(
-                            selectedMonth: _selectedMonth,
-                            selectedDay: _selectedDay,
-                            monthAvailability: _monthAvailability,
-                            onDaySelected: _onDaySelected,
+                    child: SlideTransition(
+                      position: Tween<Offset>(begin: const Offset(0, 0.7), end: Offset.zero)
+                          .animate(
+                            CurvedAnimation(
+                              parent: _slideController,
+                              curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
+                            ),
                           ),
+                      child: FadeTransition(
+                        opacity: _fadeController,
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : CalendarGrid(
+                                selectedMonth: _selectedMonth,
+                                selectedDay: _selectedDay,
+                                monthAvailability: _monthAvailability,
+                                onDaySelected: _onDaySelected,
+                              ),
+                      ),
+                    ),
                   ),
 
                   const SizedBox(height: 16),
@@ -304,6 +450,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          // Notification icon
           Container(
             decoration: BoxDecoration(
               color: Colors.white,

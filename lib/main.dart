@@ -5,6 +5,11 @@ import 'screens/login_screen.dart';
 import 'screens/dashboard/userDashboard.dart';
 import 'screens/dashboard/adminDashboard.dart';
 import 'screens/booking_page.dart';
+import 'screens/profilePage/profileUser.dart';
+import 'screens/profilePage/profileAdmin.dart';
+import 'screens/profilePage/changePass.dart';
+import 'screens/profilePage/editProfile.dart';
+import 'screens/profilePage/helpPage.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -36,6 +41,11 @@ class MyApp extends StatelessWidget {
         '/adminDashboard': (context) => const AdminDashboard(),
         '/userDashboard': (context) => const UserDashboard(),
         '/booking': (context) => const RoomBookingPage(),
+        '/profileUser': (context) => const ProfilePage(),
+        '/profileAdmin': (context) => const AdminProfilePage(),
+        '/changePassword': (context) => const ChangePasswordPage(),
+        '/editProfile': (context) => const EditProfilePage(),
+        '/help': (context) => const HelpPage(),
       },
     );
   }

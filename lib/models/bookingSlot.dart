@@ -9,7 +9,7 @@ class BookingSlot {
   final String keperluanKegiatan;
   final String status; // 'Pending', 'Approved', 'Rejected' (case-sensitive)
   final DateTime tanggalBooking;
-  final String? idUser; // Opsional: ID user yang booking
+  final String idUser; // Wajib: ID user yang booking
   final DateTime? createdAt;
 
   // Relasi (akan diisi saat fetch data)
@@ -23,11 +23,31 @@ class BookingSlot {
     required this.keperluanKegiatan,
     required this.status,
     required this.tanggalBooking,
-    this.idUser,
+    required this.idUser, // Diubah menjadi required
     this.createdAt,
     this.lab,
     this.sesi,
   });
+
+  // Constructor untuk membuat booking baru dengan user ID
+  factory BookingSlot.createNew({
+    required String idLab,
+    required String idSesi,
+    required String keperluanKegiatan,
+    required DateTime tanggalBooking,
+    required String idUser, // Parameter baru untuk user ID
+  }) {
+    return BookingSlot(
+      id: '', // ID akan di-generate oleh Firestore
+      idLab: idLab,
+      idSesi: idSesi,
+      keperluanKegiatan: keperluanKegiatan,
+      status: 'Pending', // Default status
+      tanggalBooking: tanggalBooking,
+      idUser: idUser, // Set user ID
+      createdAt: DateTime.now(),
+    );
+  }
 
   factory BookingSlot.fromMap(Map<String, dynamic> map, String id) {
     // Parse tanggalBooking - bisa berupa Timestamp atau String
@@ -52,7 +72,7 @@ class BookingSlot {
       keperluanKegiatan: map['keperluanKegiatan'] ?? '',
       status: map['status'] ?? 'Pending',
       tanggalBooking: parsedDate,
-      idUser: map['idUser'],
+      idUser: map['idUser'] ?? '', // Default empty string jika tidak ada
       createdAt: map['createdAt'] != null 
           ? (map['createdAt'] is Timestamp 
               ? (map['createdAt'] as Timestamp).toDate()
@@ -68,7 +88,7 @@ class BookingSlot {
       'keperluanKegiatan': keperluanKegiatan,
       'status': status,
       'tanggalBooking': Timestamp.fromDate(tanggalBooking),
-      'idUser': idUser,
+      'idUser': idUser, // Pastikan idUser disimpan
       'createdAt': Timestamp.fromDate(createdAt ?? DateTime.now()),
     };
   }
@@ -82,4 +102,30 @@ class BookingSlot {
   bool get isApproved => status.toLowerCase() == 'approved';
   bool get isPending => status.toLowerCase() == 'pending';
   bool get isRejected => status.toLowerCase() == 'rejected';
+
+  // Copy with method untuk update data
+  BookingSlot copyWith({
+    String? idLab,
+    String? idSesi,
+    String? keperluanKegiatan,
+    String? status,
+    DateTime? tanggalBooking,
+    String? idUser,
+    DateTime? createdAt,
+    Lab? lab,
+    Sesi? sesi,
+  }) {
+    return BookingSlot(
+      id: id,
+      idLab: idLab ?? this.idLab,
+      idSesi: idSesi ?? this.idSesi,
+      keperluanKegiatan: keperluanKegiatan ?? this.keperluanKegiatan,
+      status: status ?? this.status,
+      tanggalBooking: tanggalBooking ?? this.tanggalBooking,
+      idUser: idUser ?? this.idUser,
+      createdAt: createdAt ?? this.createdAt,
+      lab: lab ?? this.lab,
+      sesi: sesi ?? this.sesi,
+    );
+  }
 }

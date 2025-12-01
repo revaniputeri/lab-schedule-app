@@ -6,7 +6,7 @@ import '../models/bookingSlot.dart';
 import '../models/date_availability.dart';
 import '../models/user.dart';
 
-class FirebaseService {
+class BookingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Collection references
@@ -287,6 +287,23 @@ class FirebaseService {
   }
 
   // ==================== AVAILABILITY METHODS ====================
+  /// Helper function untuk cek apakah sesi sudah lewat (menggunakan tanggal yang diberikan)
+  bool _isSesiPast(Sesi sesi, DateTime date) {
+    try {
+      final now = DateTime.now();
+      final sesiEndTime = sesi.endTime; // ex: "08:00" or "08.00"
+      final cleaned = sesiEndTime.contains(':') ? sesiEndTime : sesiEndTime.replaceAll('.', ':');
+      final parts = cleaned.split(':');
+      if (parts.length < 2) return false;
+      final hour = int.tryParse(parts[0]) ?? 0;
+      final minute = int.tryParse(parts[1]) ?? 0;
+      final sesiEndDateTime = DateTime(date.year, date.month, date.day, hour, minute);
+      return now.isAfter(sesiEndDateTime);
+    } catch (e) {
+      print('Error in _isSesiPast: $e');
+      return false;
+    }
+  }
   
   /// Menghitung ketersediaan untuk tanggal tertentu
   Future<DateAvailability> getDateAvailability({
@@ -312,28 +329,48 @@ class FirebaseService {
     // Ambil semua sesi dan booking untuk tanggal tersebut
     final allSesi = await getAllSesi();
     final bookings = await getBookingsByLabAndDate(labId: labId, date: date);
-    
+
     // Filter hanya booking yang approved (case-insensitive)
-    final approvedBookings = bookings
-        .where((b) => b.isApproved)
-        .toList();
-    
+    final approvedBookings = bookings.where((b) => b.isApproved).toList();
+
+    // Cek apakah hari ini dan semua sesi sudah lewat
+    bool allSessionsPast = false;
+    if (checkDate.isAtSameMomentAs(today)) {
+      allSessionsPast = allSesi.every((sesi) => _isSesiPast(sesi, date));
+    }
+
+    // Untuk hari ini, abaikan sesi yang sudah lewat saat menghitung ketersediaan
+    final List<Sesi> sesiConsidered = checkDate.isAtSameMomentAs(today)
+        ? allSesi.where((s) => !_isSesiPast(s, date)).toList()
+        : allSesi;
+
     final bookedSesiIds = approvedBookings.map((b) => b.idSesi).toList();
-    final availableSesiIds = allSesi
-        .where((s) => !bookedSesiIds.contains(s.id))
+    final bookedSesiIdsConsidered = bookedSesiIds
+        .where((id) => sesiConsidered.any((s) => s.id == id))
+        .toList();
+
+    final availableSesiIds = sesiConsidered
+        .where((s) => !bookedSesiIdsConsidered.contains(s.id))
         .map((s) => s.id)
         .toList();
 
-    final totalSesi = allSesi.length;
-    final bookedSesi = bookedSesiIds.length;
+    final totalSesi = sesiConsidered.length;
+    final bookedSesi = bookedSesiIdsConsidered.length;
 
     DateStatus status;
-    if (bookedSesi == 0) {
+    if (allSessionsPast) {
+      status = DateStatus.past;
+    } else if (bookedSesi == 0) {
       status = DateStatus.available;
     } else if (bookedSesi == totalSesi) {
       status = DateStatus.unavailable;
     } else {
       status = DateStatus.partial;
+    }
+
+    // Debug logging for today to help verify availability
+    if (checkDate.isAtSameMomentAs(today)) {
+      print('getDateAvailability - date: $checkDate, totalSesiConsidered: $totalSesi, bookedSesi: $bookedSesi, availableSesiIds: $availableSesiIds, bookedSesiIds: $bookedSesiIds');
     }
 
     return DateAvailability(
@@ -342,7 +379,7 @@ class FirebaseService {
       totalSesi: totalSesi,
       bookedSesi: bookedSesi,
       availableSesiIds: availableSesiIds,
-      bookedSesiIds: bookedSesiIds,
+      bookedSesiIds: bookedSesiIdsConsidered,
     );
   }
 
@@ -393,23 +430,38 @@ class FirebaseService {
       }
 
       final dayBookings = bookingsByDate[dateKey] ?? [];
-      
+
       // Filter approved bookings (case-insensitive)
-      final approvedBookings = dayBookings
-          .where((b) => b.isApproved)
-          .toList();
-      
+      final approvedBookings = dayBookings.where((b) => b.isApproved).toList();
+
+      // Cek apakah hari ini dan semua sesi sudah lewat
+      bool allSessionsPast = false;
+      if (checkDate.isAtSameMomentAs(today)) {
+        allSessionsPast = allSesi.every((sesi) => _isSesiPast(sesi, date));
+      }
+
+      // Untuk hari ini, abaikan sesi yang sudah lewat saat menghitung ketersediaan
+      final List<Sesi> sesiConsidered = checkDate.isAtSameMomentAs(today)
+          ? allSesi.where((s) => !_isSesiPast(s, date)).toList()
+          : allSesi;
+
       final bookedSesiIds = approvedBookings.map((b) => b.idSesi).toList();
-      final availableSesiIds = allSesi
-          .where((s) => !bookedSesiIds.contains(s.id))
+      final bookedSesiIdsConsidered = bookedSesiIds
+          .where((id) => sesiConsidered.any((s) => s.id == id))
+          .toList();
+
+      final availableSesiIds = sesiConsidered
+          .where((s) => !bookedSesiIdsConsidered.contains(s.id))
           .map((s) => s.id)
           .toList();
 
-      final totalSesi = allSesi.length;
-      final bookedSesi = bookedSesiIds.length;
+      final totalSesi = sesiConsidered.length;
+      final bookedSesi = bookedSesiIdsConsidered.length;
 
       DateStatus status;
-      if (bookedSesi == 0) {
+      if (allSessionsPast) {
+        status = DateStatus.past;
+      } else if (bookedSesi == 0) {
         status = DateStatus.available;
       } else if (bookedSesi == totalSesi) {
         status = DateStatus.unavailable;
@@ -423,8 +475,13 @@ class FirebaseService {
         totalSesi: totalSesi,
         bookedSesi: bookedSesi,
         availableSesiIds: availableSesiIds.toList(),
-        bookedSesiIds: bookedSesiIds,
+        bookedSesiIds: bookedSesiIdsConsidered,
       );
+
+      // Debug logging for today
+      if (checkDate.isAtSameMomentAs(today)) {
+        print('getMonthAvailability - day: $day, totalSesiConsidered: $totalSesi, bookedSesi: $bookedSesi, availableSesiIds: ${availableSesiIds.toList()}, bookedSesiIds: ${bookedSesiIdsConsidered}');
+      }
     }
 
     return availability;
