@@ -11,6 +11,7 @@ class BookingSlot {
   final DateTime tanggalBooking;
   final String idUser; // Wajib: ID user yang booking
   final DateTime? createdAt;
+  final String? rejectReason;
 
   // Relasi (akan diisi saat fetch data)
   Lab? lab;
@@ -25,6 +26,7 @@ class BookingSlot {
     required this.tanggalBooking,
     required this.idUser, // Diubah menjadi required
     this.createdAt,
+    this.rejectReason,
     this.lab,
     this.sesi,
   });
@@ -46,6 +48,7 @@ class BookingSlot {
       tanggalBooking: tanggalBooking,
       idUser: idUser, // Set user ID
       createdAt: DateTime.now(),
+      rejectReason: null,
     );
   }
 
@@ -78,6 +81,7 @@ class BookingSlot {
               ? (map['createdAt'] as Timestamp).toDate()
               : DateTime.parse(map['createdAt']))
           : null,
+        rejectReason: map['rejectReason'] as String?,
     );
   }
 
@@ -88,8 +92,9 @@ class BookingSlot {
       'keperluanKegiatan': keperluanKegiatan,
       'status': status,
       'tanggalBooking': Timestamp.fromDate(tanggalBooking),
-      'idUser': idUser, // Pastikan idUser disimpan
+      'idUser': idUser,
       'createdAt': Timestamp.fromDate(createdAt ?? DateTime.now()),
+      if (rejectReason != null) 'rejectReason': rejectReason,
     };
   }
 
@@ -112,6 +117,7 @@ class BookingSlot {
     DateTime? tanggalBooking,
     String? idUser,
     DateTime? createdAt,
+    String? rejectReason,
     Lab? lab,
     Sesi? sesi,
   }) {
@@ -124,6 +130,7 @@ class BookingSlot {
       tanggalBooking: tanggalBooking ?? this.tanggalBooking,
       idUser: idUser ?? this.idUser,
       createdAt: createdAt ?? this.createdAt,
+      rejectReason: rejectReason ?? this.rejectReason,
       lab: lab ?? this.lab,
       sesi: sesi ?? this.sesi,
     );

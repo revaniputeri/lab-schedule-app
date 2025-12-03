@@ -797,7 +797,14 @@ class _AdminDashboardState extends State<AdminDashboard>
                 _buildInfoRow(Icons.description, 'Keperluan', b.keperluanKegiatan.isEmpty ? '-' : b.keperluanKegiatan, Colors.purple),
                 const SizedBox(height: 8),
                 if (b.isRejected)
-                  _buildInfoRow(Icons.report, 'Alasan Penolakan', '-', Colors.red),
+                  _buildInfoRow(
+                    Icons.report,
+                    'Alasan Penolakan',
+                    (b.rejectReason != null && b.rejectReason!.trim().isNotEmpty)
+                        ? b.rejectReason!
+                        : '-',
+                    Colors.red,
+                  ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
