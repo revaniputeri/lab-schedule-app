@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:jadwal_lab/services/booking_service.dart';
 import 'package:jadwal_lab/models/user.dart';
 import 'package:jadwal_lab/models/bookingSlot.dart';
@@ -62,9 +63,43 @@ class _AdminDashboardState extends State<AdminDashboard>
       _error = null;
     });
     try {
-      final pending = await _service.getBookingsByStatus('pending');
-      final approved = await _service.getBookingsByStatus('approved');
-      final rejected = await _service.getBookingsByStatus('rejected');
+      // Ambil lab yang dikelola admin login saat ini
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        throw 'User belum login';
+      }
+
+      final labsSnap = await FirebaseFirestore.instance
+          .collection('laboratorium')
+          .where('userId', isEqualTo: uid)
+          .get();
+      final ownedLabIds = labsSnap.docs.map((d) => d.id).toList();
+
+      // Jika admin tidak memiliki lab, kosongkan hasil
+      if (ownedLabIds.isEmpty) {
+        setState(() {
+          _pending = [];
+          _approved = [];
+          _rejected = [];
+          _userCache = {};
+          stats = {
+            'pending': 0,
+            'approved': 0,
+            'rejected': 0,
+            'total': 0,
+          };
+        });
+        return;
+      }
+
+      // Ambil booking per status lalu filter hanya milik lab admin
+      final pendingAll = await _service.getBookingsByStatus('pending');
+      final approvedAll = await _service.getBookingsByStatus('approved');
+      final rejectedAll = await _service.getBookingsByStatus('rejected');
+
+      final pending = pendingAll.where((b) => ownedLabIds.contains(b.idLab)).toList();
+      final approved = approvedAll.where((b) => ownedLabIds.contains(b.idLab)).toList();
+      final rejected = rejectedAll.where((b) => ownedLabIds.contains(b.idLab)).toList();
 
       final allIds = <String>{};
       for (var b in pending) allIds.add(b.idUser);
