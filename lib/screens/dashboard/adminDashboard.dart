@@ -610,7 +610,12 @@ class _AdminDashboardState extends State<AdminDashboard>
                       const SizedBox(height: 8),
                       _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
                       const SizedBox(height: 8),
-                      _buildInfoRow(Icons.description, 'Keperluan', b.keperluanKegiatan.isEmpty ? '-' : b.keperluanKegiatan, Colors.purple),
+                      _buildInfoRow(
+                        Icons.description,
+                        'Keperluan',
+                        b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
+                        Colors.purple,
+                      ),
                     ],
                   ),
                 ),
@@ -626,6 +631,11 @@ class _AdminDashboardState extends State<AdminDashboard>
                         color: Colors.grey.shade500,
                         fontStyle: FontStyle.italic,
                       ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => _showDetail(b),
+                      child: const Text('Detail'),
                     ),
                   ],
                 ),
@@ -708,6 +718,107 @@ class _AdminDashboardState extends State<AdminDashboard>
           ),
         ),
       ],
+    );
+  }
+
+  String _truncate(String text, {int max = 120}) {
+    if (text.length <= max) return text;
+    return text.substring(0, max).trim() + '…';
+  }
+
+  void _showDetail(BookingSlot b) {
+    final user = _userCache[b.idUser];
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
+    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+    final labName = b.lab?.namaLab ?? '-';
+    final sesiName = b.sesi?.sesi ?? '-';
+    final waktu = b.sesi?.waktu ?? sesiName;
+    final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
+    final createdAt = b.createdAt ?? b.tanggalBooking;
+    final submittedAt = _relative(DateTime.now().difference(createdAt));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 16 + MediaQuery.of(ctx).padding.bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade600),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Detail Booking',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    Text(
+                      b.status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: b.isApproved
+                            ? Colors.green.shade700
+                            : b.isRejected
+                                ? Colors.red.shade700
+                                : Colors.orange.shade700,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Tutup',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildInfoRow(Icons.person, 'Nama', userName, Colors.blue),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.badge, 'NIM', nim, Colors.indigo),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.computer, 'Lab', labName, Colors.blue),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.access_time, 'Sesi', waktu, Colors.orange),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.description, 'Keperluan', b.keperluanKegiatan.isEmpty ? '-' : b.keperluanKegiatan, Colors.purple),
+                const SizedBox(height: 8),
+                if (b.isRejected)
+                  _buildInfoRow(Icons.report, 'Alasan Penolakan', '-', Colors.red),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Diajukan $submittedAt',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -824,8 +935,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                   _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
                   const SizedBox(height: 8),
                   _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
-                  const SizedBox(height: 8),
-                  _buildInfoRow(Icons.description, 'Keperluan', b.keperluanKegiatan.isEmpty ? '-' : b.keperluanKegiatan, Colors.purple),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(
+                        Icons.description,
+                        'Keperluan',
+                        b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
+                        Colors.purple,
+                      ),
                 ],
               ),
             ),
@@ -842,6 +958,11 @@ class _AdminDashboardState extends State<AdminDashboard>
                     fontStyle: FontStyle.italic,
                   ),
                 ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => _showDetail(b),
+                      child: const Text('Detail'),
+                    ),
               ],
             ),
           ],
@@ -935,8 +1056,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                   _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
                   const SizedBox(height: 8),
                   _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
-                  const SizedBox(height: 8),
-                  _buildInfoRow(Icons.description, 'Keperluan', b.keperluanKegiatan.isEmpty ? '-' : b.keperluanKegiatan, Colors.purple),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(
+                        Icons.description,
+                        'Keperluan',
+                        b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
+                        Colors.purple,
+                      ),
                 ],
               ),
             ),
@@ -953,6 +1079,11 @@ class _AdminDashboardState extends State<AdminDashboard>
                     fontStyle: FontStyle.italic,
                   ),
                 ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => _showDetail(b),
+                      child: const Text('Detail'),
+                    ),
               ],
             ),
           ],
