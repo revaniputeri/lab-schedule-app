@@ -523,7 +523,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
     final user = _userCache[b.idUser]; // idUser is non-nullable
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : b.idUser;
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
 
     return Container(
@@ -744,7 +744,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     final dateStr = _formatDateIndo(b.tanggalBooking);
     final timeStr = b.sesi?.waktu ?? '';
     final user = _userCache[b.idUser];
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : b.idUser;
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -801,7 +801,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     final labName = b.lab?.namaLab ?? 'Lab';
     final dateStr = _formatDateIndo(b.tanggalBooking);
     final user = _userCache[b.idUser];
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : b.idUser;
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -875,7 +875,7 @@ class _AdminDashboardState extends State<AdminDashboard>
         ),
         content: Builder(builder: (context) {
           final user = _userCache[b.idUser];
-          final userName = (user?.name.isNotEmpty == true) ? user!.name : b.idUser;
+          final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
           final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
           return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
         }),

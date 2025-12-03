@@ -178,7 +178,6 @@ class BookingService {
             ? status
             : status[0].toUpperCase() + status.substring(1).toLowerCase();
         final normalized = normalizedRaw.trim();
-        // Build case-insensitive variants
         List<String> variants = [normalized, normalized.toLowerCase()];
         if (normalized.toLowerCase() == 'rejected') {
           variants.add('Ditolak');
@@ -187,16 +186,15 @@ class BookingService {
         } else if (normalized.toLowerCase() == 'pending') {
           variants.add('Menunggu');
         }
-        // Remove duplicates and empty
         variants = variants.where((e) => e.trim().isNotEmpty).toSet().toList();
         print('[getBookingsByStatus] Querying status variants = ${variants.join(', ')}');
         Query base = _bookingsCollection.where('status', whereIn: variants);
-        Query ordered = base.orderBy('tanggalBooking', descending: false);
+        final bool isPending = normalized.toLowerCase() == 'pending';
+        Query ordered = base.orderBy('createdAt', descending: !isPending);
       QuerySnapshot snapshot;
       try {
         snapshot = await ordered.get();
       } on FirebaseException catch (e) {
-        // Jika index belum dibuat untuk kombinasi where + orderBy
         if (e.code == 'failed-precondition') {
           print('[getBookingsByStatus] Index missing, retry without orderBy. Firestore message: ${e.message}');
           snapshot = await base.get();
@@ -204,7 +202,6 @@ class BookingService {
           rethrow;
         }
       }
-      // Kumpulkan dokumen (sudah mencakup variasi dengan whereIn)
       final docs = <QueryDocumentSnapshot>[];
       docs.addAll(snapshot.docs);
       print('[getBookingsByStatus] Found ${docs.length} docs');
@@ -224,6 +221,14 @@ class BookingService {
           print('[getBookingsByStatus] Error mapping doc ${doc.id}: $inner');
         }
       }
+
+      list.sort((a, b) {
+        final da = a.createdAt ?? a.tanggalBooking;
+        final db = b.createdAt ?? b.tanggalBooking;
+        return (normalized.toLowerCase() == 'pending')
+        ? da.compareTo(db) // oldest first
+        : db.compareTo(da); // newest first
+      });
       return list;
     } catch (e) {
       print('Error getBookingsByStatus($status): $e');
@@ -231,7 +236,6 @@ class BookingService {
     }
   }
 
-  /// Ambil semua booking sekaligus lalu kelompokkan di client (opsional)
   Future<List<BookingSlot>> getAllBookings() async {
     try {
       final snapshot = await _bookingsCollection.get();
