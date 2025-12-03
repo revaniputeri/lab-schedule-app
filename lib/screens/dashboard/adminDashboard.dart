@@ -22,18 +22,15 @@ class _AdminDashboardState extends State<AdminDashboard>
   late AnimationController _slideController;
   late TabController _tabController;
 
-  final _service = FirebaseService();
+  final _service = BookingService(); 
   bool _isLoading = false;
   String? _error;
 
   List<BookingSlot> _pending = [];
   List<BookingSlot> _approved = [];
   List<BookingSlot> _rejected = [];
-  // Cache user data (id -> AppUser)
   Map<String, AppUser> _userCache = {};
 
-  // Hapus dummy: pendingBookings, approvedBookings, stats
-  // Ganti statistics dihitung dari data real:
   Map<String, int> stats = {
     'pending': 0,
     'approved': 0,
@@ -69,14 +66,14 @@ class _AdminDashboardState extends State<AdminDashboard>
       final approved = await _service.getBookingsByStatus('approved');
       final rejected = await _service.getBookingsByStatus('rejected');
 
-      // Fetch users for all bookings (collect unique ids)
       final allIds = <String>{};
-      for (var b in pending) allIds.add(b.idUser ?? '');
-      for (var b in approved) allIds.add(b.idUser ?? '');
-      for (var b in rejected) allIds.add(b.idUser ?? '');
+      for (var b in pending) allIds.add(b.idUser);
+      for (var b in approved) allIds.add(b.idUser);
+      for (var b in rejected) allIds.add(b.idUser);
+
       Map<String, AppUser> userMap = {};
       if (allIds.isNotEmpty) {
-        userMap = await _service.getUsersByIds(allIds.where((e) => e.isNotEmpty).toList());
+        userMap = await _service.getUsersByIds(allIds.toList());
       }
 
       setState(() {
@@ -86,9 +83,9 @@ class _AdminDashboardState extends State<AdminDashboard>
         _userCache = userMap;
         stats = {
           'pending': _pending.length,
-            'approved': _approved.length,
-            'rejected': _rejected.length,
-            'total': _pending.length + _approved.length + _rejected.length,
+          'approved': _approved.length,
+          'rejected': _rejected.length,
+          'total': _pending.length + _approved.length + _rejected.length,
         };
       });
     } catch (e) {
@@ -490,8 +487,8 @@ class _AdminDashboardState extends State<AdminDashboard>
     final createdAt = b.createdAt ?? b.tanggalBooking;
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
-    final user = b.idUser != null ? _userCache[b.idUser!] : null;
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final user = _userCache[b.idUser]; // idUser is non-nullable
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : b.idUser;
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
 
     return Container(
@@ -711,8 +708,8 @@ class _AdminDashboardState extends State<AdminDashboard>
     final labName = b.lab?.namaLab ?? 'Lab';
     final dateStr = _formatDateIndo(b.tanggalBooking);
     final timeStr = b.sesi?.waktu ?? '';
-    final user = b.idUser != null ? _userCache[b.idUser!] : null;
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final user = _userCache[b.idUser];
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : b.idUser;
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -768,8 +765,8 @@ class _AdminDashboardState extends State<AdminDashboard>
   Widget _buildRejectedCard(BookingSlot b) {
     final labName = b.lab?.namaLab ?? 'Lab';
     final dateStr = _formatDateIndo(b.tanggalBooking);
-    final user = b.idUser != null ? _userCache[b.idUser!] : null;
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final user = _userCache[b.idUser];
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : b.idUser;
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -842,8 +839,8 @@ class _AdminDashboardState extends State<AdminDashboard>
           ],
         ),
         content: Builder(builder: (context) {
-          final user = b.idUser != null ? _userCache[b.idUser!] : null;
-          final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+          final user = _userCache[b.idUser];
+          final userName = (user?.name.isNotEmpty == true) ? user!.name : b.idUser;
           final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
           return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
         }),
