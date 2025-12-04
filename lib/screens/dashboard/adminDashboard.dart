@@ -23,7 +23,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   late AnimationController _slideController;
   late TabController _tabController;
 
-  final _service = BookingService(); 
+  final _service = BookingService();
   bool _isLoading = false;
   String? _error;
 
