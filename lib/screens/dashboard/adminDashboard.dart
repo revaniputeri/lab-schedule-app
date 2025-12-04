@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:jadwal_lab/services/booking_service.dart';
 import 'package:jadwal_lab/models/user.dart';
 import 'package:jadwal_lab/models/bookingSlot.dart';
@@ -29,11 +30,8 @@ class _AdminDashboardState extends State<AdminDashboard>
   List<BookingSlot> _pending = [];
   List<BookingSlot> _approved = [];
   List<BookingSlot> _rejected = [];
-  // Cache user data (id -> AppUser)
   Map<String, AppUser> _userCache = {};
 
-  // Hapus dummy: pendingBookings, approvedBookings, stats
-  // Ganti statistics dihitung dari data real:
   Map<String, int> stats = {
     'pending': 0,
     'approved': 0,
@@ -65,18 +63,52 @@ class _AdminDashboardState extends State<AdminDashboard>
       _error = null;
     });
     try {
-      final pending = await _service.getBookingsByStatus('pending');
-      final approved = await _service.getBookingsByStatus('approved');
-      final rejected = await _service.getBookingsByStatus('rejected');
+      // Ambil lab yang dikelola admin login saat ini
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        throw 'User belum login';
+      }
 
-      // Fetch users for all bookings (collect unique ids)
+      final labsSnap = await FirebaseFirestore.instance
+          .collection('laboratorium')
+          .where('userId', isEqualTo: uid)
+          .get();
+      final ownedLabIds = labsSnap.docs.map((d) => d.id).toList();
+
+      // Jika admin tidak memiliki lab, kosongkan hasil
+      if (ownedLabIds.isEmpty) {
+        setState(() {
+          _pending = [];
+          _approved = [];
+          _rejected = [];
+          _userCache = {};
+          stats = {
+            'pending': 0,
+            'approved': 0,
+            'rejected': 0,
+            'total': 0,
+          };
+        });
+        return;
+      }
+
+      // Ambil booking per status lalu filter hanya milik lab admin
+      final pendingAll = await _service.getBookingsByStatus('pending');
+      final approvedAll = await _service.getBookingsByStatus('approved');
+      final rejectedAll = await _service.getBookingsByStatus('rejected');
+
+      final pending = pendingAll.where((b) => ownedLabIds.contains(b.idLab)).toList();
+      final approved = approvedAll.where((b) => ownedLabIds.contains(b.idLab)).toList();
+      final rejected = rejectedAll.where((b) => ownedLabIds.contains(b.idLab)).toList();
+
       final allIds = <String>{};
-      for (var b in pending) allIds.add(b.idUser ?? '');
-      for (var b in approved) allIds.add(b.idUser ?? '');
-      for (var b in rejected) allIds.add(b.idUser ?? '');
+      for (var b in pending) allIds.add(b.idUser);
+      for (var b in approved) allIds.add(b.idUser);
+      for (var b in rejected) allIds.add(b.idUser);
+
       Map<String, AppUser> userMap = {};
       if (allIds.isNotEmpty) {
-        userMap = await _service.getUsersByIds(allIds.where((e) => e.isNotEmpty).toList());
+        userMap = await _service.getUsersByIds(allIds.toList());
       }
 
       setState(() {
@@ -86,9 +118,9 @@ class _AdminDashboardState extends State<AdminDashboard>
         _userCache = userMap;
         stats = {
           'pending': _pending.length,
-            'approved': _approved.length,
-            'rejected': _rejected.length,
-            'total': _pending.length + _approved.length + _rejected.length,
+          'approved': _approved.length,
+          'rejected': _rejected.length,
+          'total': _pending.length + _approved.length + _rejected.length,
         };
       });
     } catch (e) {
@@ -490,8 +522,8 @@ class _AdminDashboardState extends State<AdminDashboard>
     final createdAt = b.createdAt ?? b.tanggalBooking;
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
-    final user = b.idUser != null ? _userCache[b.idUser!] : null;
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final user = _userCache[b.idUser]; // idUser is non-nullable
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
 
     return Container(
@@ -578,7 +610,12 @@ class _AdminDashboardState extends State<AdminDashboard>
                       const SizedBox(height: 8),
                       _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
                       const SizedBox(height: 8),
-                      _buildInfoRow(Icons.description, 'Keperluan', b.keperluanKegiatan.isEmpty ? '-' : b.keperluanKegiatan, Colors.purple),
+                      _buildInfoRow(
+                        Icons.description,
+                        'Keperluan',
+                        b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
+                        Colors.purple,
+                      ),
                     ],
                   ),
                 ),
@@ -594,6 +631,11 @@ class _AdminDashboardState extends State<AdminDashboard>
                         color: Colors.grey.shade500,
                         fontStyle: FontStyle.italic,
                       ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => _showDetail(b),
+                      child: const Text('Detail'),
                     ),
                   ],
                 ),
@@ -679,6 +721,114 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
+  String _truncate(String text, {int max = 120}) {
+    if (text.length <= max) return text;
+    return text.substring(0, max).trim() + '…';
+  }
+
+  void _showDetail(BookingSlot b) {
+    final user = _userCache[b.idUser];
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
+    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+    final labName = b.lab?.namaLab ?? '-';
+    final sesiName = b.sesi?.sesi ?? '-';
+    final waktu = b.sesi?.waktu ?? sesiName;
+    final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
+    final createdAt = b.createdAt ?? b.tanggalBooking;
+    final submittedAt = _relative(DateTime.now().difference(createdAt));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 16 + MediaQuery.of(ctx).padding.bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade600),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Detail Booking',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    Text(
+                      b.status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: b.isApproved
+                            ? Colors.green.shade700
+                            : b.isRejected
+                                ? Colors.red.shade700
+                                : Colors.orange.shade700,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Tutup',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildInfoRow(Icons.person, 'Nama', userName, Colors.blue),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.badge, 'NIM', nim, Colors.indigo),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.computer, 'Lab', labName, Colors.blue),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.access_time, 'Sesi', waktu, Colors.orange),
+                const SizedBox(height: 8),
+                _buildInfoRow(Icons.description, 'Keperluan', b.keperluanKegiatan.isEmpty ? '-' : b.keperluanKegiatan, Colors.purple),
+                const SizedBox(height: 8),
+                if (b.isRejected)
+                  _buildInfoRow(
+                    Icons.report,
+                    'Alasan Penolakan',
+                    (b.rejectReason != null && b.rejectReason!.trim().isNotEmpty)
+                        ? b.rejectReason!
+                        : '-',
+                    Colors.red,
+                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Diajukan $submittedAt',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   String _relative(Duration d) {
     if (d.inMinutes < 1) return 'baru saja';
     if (d.inMinutes < 60) return '${d.inMinutes} menit yang lalu';
@@ -708,115 +858,243 @@ class _AdminDashboardState extends State<AdminDashboard>
 
 // Approved & Rejected card adaptasi
   Widget _buildApprovedCard(BookingSlot b) {
+    // Samakan tampilan dengan card Pending, tanpa tombol aksi
     final labName = b.lab?.namaLab ?? 'Lab';
-    final dateStr = _formatDateIndo(b.tanggalBooking);
-    final timeStr = b.sesi?.waktu ?? '';
-    final user = b.idUser != null ? _userCache[b.idUser!] : null;
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final sesiName = b.sesi?.sesi ?? '';
+    final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
+    final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
+    final color = Colors.green; // warna aksen untuk approved
+    final createdAt = b.createdAt ?? b.tanggalBooking;
+    final diff = DateTime.now().difference(createdAt);
+    final submittedAt = _relative(diff);
+    final user = _userCache[b.idUser];
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.green.shade200, width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withOpacity(0.1),
-            blurRadius: 10,
+            color: color.withOpacity(0.12),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.check_circle, color: Colors.green.shade600, size: 32),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
               children: [
-                Text(userName,
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: color.withOpacity(0.15),
+                  child: Icon(Icons.check_circle, color: color, size: 26),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(userName,
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade800)),
+                      const SizedBox(height: 4),
+                      Text('NIM: $nim',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Approved',
                     style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade800)),
-                const SizedBox(height: 4),
-                Text('$labName • $dateStr', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                const SizedBox(height: 4),
-                Text(timeStr, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                const SizedBox(height: 6),
-                Text('NIM: $nim', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                const SizedBox(height: 4),
-                Text('Disetujui', style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontStyle: FontStyle.italic)),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  _buildInfoRow(Icons.computer, 'Lab', labName, Colors.blue),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(
+                        Icons.description,
+                        'Keperluan',
+                        b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
+                        Colors.purple,
+                      ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 5),
+                Text(
+                  'Diajukan $submittedAt',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => _showDetail(b),
+                      child: const Text('Detail'),
+                    ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildRejectedCard(BookingSlot b) {
+    // Samakan tampilan dengan card Pending, tanpa tombol aksi
     final labName = b.lab?.namaLab ?? 'Lab';
-    final dateStr = _formatDateIndo(b.tanggalBooking);
-    final user = b.idUser != null ? _userCache[b.idUser!] : null;
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+    final sesiName = b.sesi?.sesi ?? '';
+    final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
+    final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
+    final color = Colors.red; // warna aksen untuk rejected
+    final createdAt = b.createdAt ?? b.tanggalBooking;
+    final diff = DateTime.now().difference(createdAt);
+    final submittedAt = _relative(diff);
+    final user = _userCache[b.idUser];
+    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.red.shade200, width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.1),
-            blurRadius: 10,
+            color: color.withOpacity(0.12),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.cancel, color: Colors.red.shade600, size: 32),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
               children: [
-                Text(userName,
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: color.withOpacity(0.15),
+                  child: Icon(Icons.cancel, color: color, size: 26),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(userName,
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade800)),
+                      const SizedBox(height: 4),
+                      Text('NIM: $nim',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Rejected',
                     style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade800)),
-                const SizedBox(height: 4),
-                Text('$labName • $dateStr',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                const SizedBox(height: 4),
-                Text('NIM: $nim', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                const SizedBox(height: 4),
-                Text('Ditolak', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  _buildInfoRow(Icons.computer, 'Lab', labName, Colors.blue),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(
+                        Icons.description,
+                        'Keperluan',
+                        b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
+                        Colors.purple,
+                      ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 5),
+                Text(
+                  'Diajukan $submittedAt',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => _showDetail(b),
+                      child: const Text('Detail'),
+                    ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -842,8 +1120,8 @@ class _AdminDashboardState extends State<AdminDashboard>
           ],
         ),
         content: Builder(builder: (context) {
-          final user = b.idUser != null ? _userCache[b.idUser!] : null;
-          final userName = (user?.name.isNotEmpty == true) ? user!.name : (b.idUser ?? '-');
+          final user = _userCache[b.idUser];
+          final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
           final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
           return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
         }),
