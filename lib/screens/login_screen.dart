@@ -190,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Login ke Jadwal Laboratorium',
+                              'Login ke Booking Lab',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey.shade600,
