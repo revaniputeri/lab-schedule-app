@@ -10,12 +10,12 @@ import 'screens/profilePage/profileAdmin.dart';
 import 'screens/profilePage/changePass.dart';
 import 'screens/profilePage/editProfile.dart';
 import 'screens/profilePage/helpPage.dart';
+import 'screens/splash_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // Init locale data for Indonesian date formatting used in dashboard
   try {
     await initializeDateFormatting('id_ID');
   } catch (e) {
@@ -36,8 +36,9 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.blueAccent,
       ),
+      home: const SplashScreen(),
       routes: {
-        '/': (context) => const LoginScreen(),
+        '/login': (context) => const LoginScreen(),
         '/adminDashboard': (context) => const AdminDashboard(),
         '/userDashboard': (context) => const UserDashboard(),
         '/booking': (context) => const RoomBookingPage(),
