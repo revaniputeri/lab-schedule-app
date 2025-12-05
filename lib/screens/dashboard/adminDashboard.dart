@@ -34,6 +34,10 @@ class _AdminDashboardState extends State<AdminDashboard>
   String _adminLabName = '';
   bool _labNameLoaded = false;
 
+  // Search state
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   Map<String, int> stats = {
     'pending': 0,
     'approved': 0,
@@ -176,6 +180,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     _fadeController.dispose();
     _slideController.dispose();
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -208,14 +213,16 @@ class _AdminDashboardState extends State<AdminDashboard>
                   )
                 else
                   _buildStatsCards(),
+                // Search bar applies to all tabs/status
+                _buildSearchBar(),
                 _buildTabBar(),
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildPendingList(),     // pakai _pending
-                      _buildApprovedList(),    // pakai _approved
-                      _buildRejectedList(),    // pakai _rejected
+                      _buildPendingList(),     // filtered by search
+                      _buildApprovedList(),    // filtered by search
+                      _buildRejectedList(),    // filtered by search
                     ],
                   ),
                 ),
@@ -226,6 +233,70 @@ class _AdminDashboardState extends State<AdminDashboard>
       ),
       bottomNavigationBar: Navbar(userRole: 'admin', currentIndex: 0),
     );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Container
+        (
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.search, color: Colors.grey),
+            const SizedBox(width: 5),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val.trim();
+                  });
+                },
+                decoration: const InputDecoration(
+                  hintText: 'Cari nama atau NIM mahasiswa…',
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            if (_searchQuery.isNotEmpty)
+              IconButton(
+                tooltip: 'Hapus pencarian',
+                icon: const Icon(Icons.clear, color: Colors.grey),
+                onPressed: () {
+                  setState(() {
+                    _searchQuery = '';
+                    _searchController.clear();
+                  });
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Apply search filter by user name or NIM
+  List<BookingSlot> _applySearch(List<BookingSlot> source) {
+    final q = _searchQuery.toLowerCase();
+    if (q.isEmpty) return source;
+    return source.where((b) {
+      final user = _userCache[b.idUser];
+      final name = (user?.name ?? '').toLowerCase();
+      final nim = (user?.nim ?? '').toLowerCase();
+      return name.contains(q) || nim.contains(q);
+    }).toList();
   }
 
   Widget _buildAppBar() {
@@ -485,7 +556,7 @@ class _AdminDashboardState extends State<AdminDashboard>
 
   Widget _buildTabBar() {
     return Container(
-      margin: const EdgeInsets.all(20),
+      margin: const EdgeInsets.all(15),
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -525,15 +596,16 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   Widget _buildPendingList() {
-    if (_pending.isEmpty && !_isLoading) {
+    final list = _applySearch(_pending);
+    if (list.isEmpty && !_isLoading) {
       return _emptyState('Belum ada booking pending');
     }
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       physics: const BouncingScrollPhysics(),
-      itemCount: _pending.length,
+      itemCount: list.length,
       itemBuilder: (context, index) {
-        final b = _pending[index];
+        final b = list[index];
         return TweenAnimationBuilder(
           duration: Duration(milliseconds: 400 + (index * 80)),
           tween: Tween<double>(begin: 0, end: 1),
@@ -548,24 +620,26 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   Widget _buildApprovedList() {
-    if (_approved.isEmpty && !_isLoading) {
+    final list = _applySearch(_approved);
+    if (list.isEmpty && !_isLoading) {
       return _emptyState('Belum ada booking disetujui');
     }
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      itemCount: _approved.length,
-      itemBuilder: (context, i) => _buildApprovedCard(_approved[i]),
+      itemCount: list.length,
+      itemBuilder: (context, i) => _buildApprovedCard(list[i]),
     );
   }
 
   Widget _buildRejectedList() {
-    if (_rejected.isEmpty && !_isLoading) {
+    final list = _applySearch(_rejected);
+    if (list.isEmpty && !_isLoading) {
       return _emptyState('Belum ada booking ditolak');
     }
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      itemCount: _rejected.length,
-      itemBuilder: (context, i) => _buildRejectedCard(_rejected[i]),
+      itemCount: list.length,
+      itemBuilder: (context, i) => _buildRejectedCard(list[i]),
     );
   }
 
@@ -587,14 +661,14 @@ class _AdminDashboardState extends State<AdminDashboard>
     final labName = b.lab?.namaLab ?? 'Lab';
     final sesiName = b.sesi?.sesi ?? '';
     final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
-    final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
+    final timeStr = ((b.sesi?.waktu ?? '').isNotEmpty) ? b.sesi!.waktu : sesiName;
     final color = Colors.blue;
     final createdAt = b.createdAt ?? b.tanggalBooking;
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
     final user = _userCache[b.idUser];
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
-    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+    final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
+    final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -797,8 +871,8 @@ class _AdminDashboardState extends State<AdminDashboard>
 
   void _showDetail(BookingSlot b) {
     final user = _userCache[b.idUser];
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
-    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+    final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
+    final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
     final labName = b.lab?.namaLab ?? '-';
     final sesiName = b.sesi?.sesi ?? '-';
     final waktu = b.sesi?.waktu ?? sesiName;
@@ -926,14 +1000,14 @@ class _AdminDashboardState extends State<AdminDashboard>
     final labName = b.lab?.namaLab ?? 'Lab';
     final sesiName = b.sesi?.sesi ?? '';
     final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
-    final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
+    final timeStr = ((b.sesi?.waktu ?? '').isNotEmpty) ? b.sesi!.waktu : sesiName;
     final color = Colors.green;
     final createdAt = b.createdAt ?? b.tanggalBooking;
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
     final user = _userCache[b.idUser];
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
-    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+    final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
+    final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -1046,14 +1120,14 @@ class _AdminDashboardState extends State<AdminDashboard>
     final labName = b.lab?.namaLab ?? 'Lab';
     final sesiName = b.sesi?.sesi ?? '';
     final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
-    final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
+    final timeStr = ((b.sesi?.waktu ?? '').isNotEmpty) ? b.sesi!.waktu : sesiName;
     final color = Colors.red;
     final createdAt = b.createdAt ?? b.tanggalBooking;
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
     final user = _userCache[b.idUser];
-    final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
-    final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+    final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
+    final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
@@ -1183,8 +1257,8 @@ class _AdminDashboardState extends State<AdminDashboard>
         ),
         content: Builder(builder: (context) {
           final user = _userCache[b.idUser];
-          final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
-          final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
+          final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
+          final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
           return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
         }),
         actions: [
@@ -1394,7 +1468,7 @@ class _AdminDashboardState extends State<AdminDashboard>
               const SizedBox(height: 8),
               ..._pending.take(3).map((b) {
                 final user = _userCache[b.idUser];
-                final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
+                final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
