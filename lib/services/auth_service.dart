@@ -95,4 +95,31 @@ class AuthService {
       throw Exception('Registrasi gagal: $e');
     }
   }
+
+  // RESET PASSWORD / LUPA PASSWORD
+Future<bool> resetPassword(String email) async {
+    try {
+      // Kirim email reset password langsung via Firebase Auth
+      await _auth.sendPasswordResetEmail(email: email.trim());
+      return true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw Exception('Email tidak terdaftar');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('Format email tidak valid');
+      } else if (e.code == 'missing-android-pkg-name' || 
+                 e.code == 'missing-ios-bundle-id') {
+        throw Exception('Aplikasi belum dikonfigurasi dengan benar');
+      } else if (e.code == 'unauthorized-continue-uri') {
+        throw Exception('URL redirect tidak diizinkan');
+      } else if (e.code == 'invalid-continue-uri') {
+        throw Exception('URL redirect tidak valid');
+      } else if (e.code == 'missing-continue-uri') {
+        throw Exception('URL redirect belum dikonfigurasi');
+      }
+      throw Exception('Reset password gagal: ${e.message}');
+    } catch (e) {
+      throw Exception('Terjadi kesalahan: $e');
+    }
+  }
 }

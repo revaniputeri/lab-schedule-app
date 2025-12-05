@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Tambahkan import ini
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/booking_service.dart';
 import '../models/lab.dart';
 import '../models/date_availability.dart';
@@ -19,7 +20,7 @@ class RoomBookingPage extends StatefulWidget {
 class _RoomBookingPageState extends State<RoomBookingPage>
     with TickerProviderStateMixin {
   final BookingService _bookingService = BookingService();
-  final FirebaseAuth _auth = FirebaseAuth.instance; // Tambahkan FirebaseAuth
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   List<Lab> _labs = [];
   String? _selectedLabId;
@@ -28,11 +29,13 @@ class _RoomBookingPageState extends State<RoomBookingPage>
 
   Map<int, DateAvailability> _monthAvailability = {};
   bool _isLoading = true;
-  String? _currentUserId; // Simpan current user ID
+  String? _currentUserId;
+  String? _userName; // Tambahkan variable untuk nama user
 
   // Animation controllers
   late AnimationController _fadeController;
   late AnimationController _slideController;
+  late AnimationController _pulseController;
 
   @override
   void initState() {
@@ -49,6 +52,11 @@ class _RoomBookingPageState extends State<RoomBookingPage>
       duration: const Duration(milliseconds: 700),
     )..forward();
 
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
     _getCurrentUser();
     _loadInitialData();
   }
@@ -57,19 +65,40 @@ class _RoomBookingPageState extends State<RoomBookingPage>
   void dispose() {
     _fadeController.dispose();
     _slideController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
   // Method untuk mendapatkan current user
-  void _getCurrentUser() {
+  void _getCurrentUser() async {
     final currentUser = _auth.currentUser;
     if (currentUser != null) {
+      // Coba ambil nama dari Firestore jika displayName kosong
+      String? userName;
+      if (currentUser.displayName == null || currentUser.displayName!.isEmpty) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUser.uid)
+              .get();
+          if (userDoc.exists) {
+            userName = userDoc['name'];
+          }
+        } catch (e) {
+          print('Error fetching user data: $e');
+        }
+      }
+      
       setState(() {
         _currentUserId = currentUser.uid;
+        _userName = userName ?? currentUser.displayName ?? currentUser.email?.split('@').first ?? "Mahasiswa";
       });
-      print('Current User ID: $_currentUserId'); // Debug
+      print('Current User: $_userName');
     } else {
-      print('No user logged in'); // Debug
+      print('No user logged in');
+      setState(() {
+        _userName = "Mahasiswa";
+      });
     }
   }
 
@@ -128,6 +157,62 @@ class _RoomBookingPageState extends State<RoomBookingPage>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.logout, color: Colors.red),
+            ),
+            const SizedBox(width: 12),
+            const Text('Logout'),
+          ],
+        ),
+        content: const Text(
+          'Anda akan keluar dari akun anda. Lanjutkan?',
+          style: TextStyle(fontSize: 15),
+          textAlign: TextAlign.left,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: TextStyle(color: Colors.grey.shade600)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await FirebaseAuth.instance.signOut();
+                // Navigasi ke halaman login
+                Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+              } catch (e) {
+                print('Error signing out: $e');
+              }
+            },
+            icon: const Icon(Icons.logout, size: 18),
+            label: const Text('Logout'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -269,7 +354,6 @@ class _RoomBookingPageState extends State<RoomBookingPage>
   }
 
   Future<void> _navigateToBookingForm(int day) async {
-    // Cek apakah user sudah login
     if (_currentUserId == null) {
       _showLoginRequiredDialog();
       return;
@@ -282,27 +366,20 @@ class _RoomBookingPageState extends State<RoomBookingPage>
       day,
     );
 
-    print('Navigating to BookingForm with:'); // Debug
-    print('User ID: $_currentUserId'); // Debug
-    print('Lab: ${selectedLab.namaLab}'); // Debug
-    print('Date: $selectedDate'); // Debug
-
     final bookingResult = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => BookingFormPage(
           lab: selectedLab, 
           selectedDate: selectedDate, 
-          currentUserId: _currentUserId!, // Gunakan currentUserId yang sudah disimpan
+          currentUserId: _currentUserId!,
         ),
       ),
     );
 
     if (bookingResult == true) {
-      // Refresh data setelah booking berhasil
       await _loadMonthAvailability();
       
-      // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -343,133 +420,256 @@ class _RoomBookingPageState extends State<RoomBookingPage>
     final size = MediaQuery.of(context).size;
     final maxWidth = size.width > 600 ? 600.0 : size.width;
 
-    if (_isLoading && _labs.isEmpty) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     return Scaffold(
-      body: Container(
+      body: Stack(
+        children: [
+          // Background utama
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFF0F4FF),
+                  Color(0xFFE8F1FF),
+                  Color(0xFFF5F9FF),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: FadeTransition(
+                opacity: _fadeController,
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    _buildAppBar(),
+                    SliverToBoxAdapter(
+                      child: Container(
+                        constraints: BoxConstraints(maxWidth: maxWidth),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 20),
+                            
+                            // Month Selector dengan animasi
+                            SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.3), 
+                                end: Offset.zero
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: _slideController, 
+                                  curve: Curves.easeOut
+                                ),
+                              ),
+                              child: FadeTransition(
+                                opacity: _fadeController,
+                                child: MonthSelector(
+                                  selectedMonth: _selectedMonth,
+                                  onMonthChanged: _changeMonth,
+                                  isLoading: _isLoading,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            // Room Selector dengan animasi
+                            SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.5), 
+                                end: Offset.zero
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: _slideController,
+                                  curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+                                ),
+                              ),
+                              child: FadeTransition(
+                                opacity: _fadeController,
+                                child: RoomSelector(
+                                  labs: _labs,
+                                  selectedLabId: _selectedLabId,
+                                  onLabSelected: _selectLab,
+                                  isLoading: _isLoading,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Calendar dengan animasi
+                            SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.7), 
+                                end: Offset.zero
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: _slideController,
+                                  curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
+                                ),
+                              ),
+                              child: FadeTransition(
+                                opacity: _fadeController,
+                                child: _isLoading && _labs.isEmpty
+                                    ? Container(
+                                        height: 300,
+                                        child: const Center(child: CircularProgressIndicator()),
+                                      )
+                                    : CalendarGrid(
+                                        selectedMonth: _selectedMonth,
+                                        selectedDay: _selectedDay,
+                                        monthAvailability: _monthAvailability,
+                                        onDaySelected: _onDaySelected,
+                                      ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 100),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Navbar di bawah
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Navbar(userRole: 'user', currentIndex: 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return SliverAppBar(
+      expandedHeight: 120,
+      floating: false,
+      pinned: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF0F4FF), Color(0xFFE8F1FF), Color(0xFFF5F9FF)],
+            colors: [Color(0xFF4A90E2), Color(0xFF5B9FEE), Color(0xFF6BADFF)],
           ),
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(30),
+            bottomRight: Radius.circular(30),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFF4A90E2).withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        child: SafeArea(
-          child: Center(
-            child: Container(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: Column(
+        child: FlexibleSpaceBar(
+          titlePadding: const EdgeInsets.only(left: 20, bottom: 20),
+          title: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(-0.5, 0),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(
+                parent: _slideController,
+                curve: Curves.easeOut,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Halo, ${_userName ?? "Mahasiswa"}! 👋',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+                const Text(
+                  'Lab Scheduler',
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          background: Padding(
+            padding: const EdgeInsets.only(right: 20, top: 40),
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Header dengan icon notifikasi (dengan fade animation)
-                  FadeTransition(
-                    opacity: _fadeController,
-                    child: _buildHeader(),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Month Selector (dengan slide up animation)
-                  SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-                        .animate(
-                          CurvedAnimation(parent: _slideController, curve: Curves.easeOut),
-                        ),
-                    child: FadeTransition(
-                      opacity: _fadeController,
-                      child: MonthSelector(
-                        selectedMonth: _selectedMonth,
-                        onMonthChanged: _changeMonth,
-                        isLoading: _isLoading,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Room Selector (dengan slide up animation)
-                  SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero)
-                        .animate(
-                          CurvedAnimation(
-                            parent: _slideController,
-                            curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
-                          ),
-                        ),
-                    child: FadeTransition(
-                      opacity: _fadeController,
-                      child: RoomSelector(
-                        labs: _labs,
-                        selectedLabId: _selectedLabId,
-                        onLabSelected: _selectLab,
-                        isLoading: _isLoading,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Calendar (dengan slide up animation)
-                  Expanded(
-                    child: SlideTransition(
-                      position: Tween<Offset>(begin: const Offset(0, 0.7), end: Offset.zero)
-                          .animate(
-                            CurvedAnimation(
-                              parent: _slideController,
-                              curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
+                  // Notification Icon dengan animasi pulse
+                  AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: 1.0 + (_pulseController.value * 0.1),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _showNotificationModal,
+                            borderRadius: BorderRadius.circular(15),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: const Icon(
+                                Icons.notifications_outlined,
+                                color: Colors.white,
+                                size: 28,
+                              ),
                             ),
                           ),
-                      child: FadeTransition(
-                        opacity: _fadeController,
-                        child: _isLoading
-                            ? const Center(child: CircularProgressIndicator())
-                            : CalendarGrid(
-                                selectedMonth: _selectedMonth,
-                                selectedDay: _selectedDay,
-                                monthAvailability: _monthAvailability,
-                                onDaySelected: _onDaySelected,
-                              ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 10),
+                  // Logout Icon
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _showLogoutDialog,
+                      borderRadius: BorderRadius.circular(15),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: const Icon(
+                          Icons.logout,
+                          color: Colors.white,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
         ),
-      ),
-      bottomNavigationBar: Navbar(userRole: 'user', currentIndex: 1),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Notification icon
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: IconButton(
-              onPressed: _showNotificationModal,
-              icon: const Icon(Icons.notifications_outlined, size: 24),
-              color: Colors.grey.shade700,
-            ),
-          ),
-        ],
       ),
     );
   }

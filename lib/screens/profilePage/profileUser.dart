@@ -26,8 +26,18 @@ class _ProfilePageState extends State<ProfilePage>
   String userEmail = '';
   String userNim = '';
   String userPhone = '';
-  String userProdi = 'Teknologi Informasi';
+  String userProdi = '';
   bool isLoading = true;
+
+  String getInitials(String name) {
+  if (name.isEmpty) return "U";
+
+  List<String> words = name.trim().split(" ");
+  String initials = words.map((word) => word[0]).take(2).join();
+
+  return initials.toUpperCase();
+}
+
 
   @override
   void initState() {
@@ -81,7 +91,7 @@ class _ProfilePageState extends State<ProfilePage>
           userEmail = userDoc.email ?? '';
           userNim = doc['nim'] ?? '-';
           userPhone = doc['phone'] ?? '-';
-          userProdi = 'Teknologi Informasi';
+          userProdi = doc['prodi'] ?? '-';
           isLoading = false;
         });
       }
@@ -285,7 +295,7 @@ class _ProfilePageState extends State<ProfilePage>
                       radius: 50,
                       backgroundColor: Color(0xFF4A90E2),
                       child: Text(
-                        userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                        getInitials(userName),
                         style: TextStyle(
                           fontSize: 40,
                           fontWeight: FontWeight.bold,
@@ -365,7 +375,7 @@ class _ProfilePageState extends State<ProfilePage>
             const SizedBox(height: 15),
             _buildInfoRow(Icons.email_outlined, 'Email', userEmail),
             _buildInfoRow(Icons.phone_outlined, 'Telepon', userPhone),
-            _buildInfoRow(Icons.school_outlined, 'Jurusan', 'Teknologi Informasi'),
+            _buildInfoRow(Icons.school_outlined, 'Prodi', userProdi),
           ],
         ),
       ),

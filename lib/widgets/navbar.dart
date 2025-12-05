@@ -5,16 +5,20 @@ class Navbar extends StatelessWidget {
   final int currentIndex;
 
   const Navbar({Key? key, required this.userRole, this.currentIndex = 1})
-    : super(key: key);
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Untuk user, home di kiri. Untuk admin, home di tengah
+    bool isAdmin = userRole == 'admin';
+    
     return SizedBox(
       height: 70,
       child: Stack(
         clipBehavior: Clip.none,
         alignment: Alignment.topCenter,
         children: [
+          // Background navbar dengan clipper untuk admin dan user
           Positioned(
             left: 0,
             right: 0,
@@ -60,24 +64,28 @@ class Navbar extends StatelessWidget {
                   child: IconButton(
                     onPressed: () {
                       // Navigate ke dashboard sesuai role
-                      if (userRole == 'admin') {
+                      if (isAdmin) {
                         Navigator.pushNamed(context, '/adminDashboard');
                       } else {
-                        Navigator.pushNamed(context, '/userDashboard');
+                        Navigator.pushNamed(context, '/booking');
                       }
                     },
                     icon: Icon(
-                      Icons.home,
+                      isAdmin ? Icons.home : Icons.calendar_month,
                       size: 32,
-                      color: currentIndex == 1 ? Colors.white70 : Colors.white,
+                      color: (isAdmin && currentIndex == 0) || (!isAdmin && currentIndex == 1)
+                          ? Colors.white
+                          : Colors.white70,
                     ),
                   ),
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Home',
+                  isAdmin ? 'Home' : 'Booking',
                   style: TextStyle(
-                    color: currentIndex == 1 ? Colors.white70 : Colors.white,
+                    color: (isAdmin && currentIndex == 0) || (!isAdmin && currentIndex == 1)
+                        ? Colors.white
+                        : Colors.white70,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -86,12 +94,12 @@ class Navbar extends StatelessWidget {
             ),
           ),
 
-          // Navigation buttons kiri dan kanan
+          // Navigation buttons
           Positioned.fill(
             top: 0,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 50),
-              child: userRole == 'admin'
+              child: isAdmin
                   ? _buildAdminButtons(context)
                   : _buildUserButtons(context),
             ),
@@ -101,7 +109,7 @@ class Navbar extends StatelessWidget {
     );
   }
 
-  // Buttons untuk Admin
+  // Buttons untuk Admin (Lab - Home - Profile)
   Widget _buildAdminButtons(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -117,13 +125,13 @@ class Navbar extends StatelessWidget {
               icon: Icon(
                 Icons.monitor,
                 size: 28,
-                color: currentIndex == 0 ? Colors.white70 : Colors.white,
+                color: currentIndex == 1 ? Colors.white : Colors.white70,
               ),
             ),
             Text(
               'Lab',
               style: TextStyle(
-                color: currentIndex == 0 ? Colors.white70 : Colors.white,
+                color: currentIndex == 1 ? Colors.white : Colors.white70,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -138,19 +146,18 @@ class Navbar extends StatelessWidget {
           children: [
             IconButton(
               onPressed: () {
-                // Navigate ke Admin Profile
                 Navigator.pushNamed(context, '/profileAdmin');
               },
               icon: Icon(
                 Icons.person,
                 size: 28,
-                color: currentIndex == 2 ? Colors.white70 : Colors.white,
+                color: currentIndex == 2 ? Colors.white : Colors.white70,
               ),
             ),
             Text(
               'Profile',
               style: TextStyle(
-                color: currentIndex == 2 ? Colors.white70 : Colors.white,
+                color: currentIndex == 2 ? Colors.white : Colors.white70,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -161,29 +168,30 @@ class Navbar extends StatelessWidget {
     );
   }
 
-  // Buttons untuk User
+  // Buttons untuk User (Home - Booking(elevated) - Profile)
   Widget _buildUserButtons(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // Home button di kiri untuk user
         Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
               onPressed: () {
-                Navigator.pushNamed(context, '/booking');
+                Navigator.pushNamed(context, '/userDashboard');
               },
               icon: Icon(
-                Icons.calendar_month,
+                Icons.home,
                 size: 28,
-                color: currentIndex == 0 ? Colors.white70 : Colors.white,
+                color: currentIndex == 0 ? Colors.white : Colors.white70,
               ),
             ),
             Text(
-              'Booking',
+              'Home',
               style: TextStyle(
-                color: currentIndex == 0 ? Colors.white70 : Colors.white,
+                color: currentIndex == 0 ? Colors.white : Colors.white70,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -193,24 +201,24 @@ class Navbar extends StatelessWidget {
 
         const SizedBox(width: 80),
 
+        // Profile button di kanan
         Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
               onPressed: () {
-                // Navigate ke User Profile
                 Navigator.pushNamed(context, '/profileUser');
               },
               icon: Icon(
                 Icons.person,
                 size: 28,
-                color: currentIndex == 2 ? Colors.white70 : Colors.white,
+                color: currentIndex == 2 ? Colors.white : Colors.white70,
               ),
             ),
             Text(
               'Profile',
               style: TextStyle(
-                color: currentIndex == 2 ? Colors.white70 : Colors.white,
+                color: currentIndex == 2 ? Colors.white : Colors.white70,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -228,24 +236,16 @@ class NavBarClipper extends CustomClipper<Path> {
     Path path = Path();
 
     path.moveTo(0, size.height);
-
     path.lineTo(0, 0);
-
     path.lineTo(size.width * 0.35, 0);
-
     path.quadraticBezierTo(size.width * 0.40, 0, size.width * 0.42, 20);
-
     path.quadraticBezierTo(size.width * 0.50, 70, size.width * 0.58, 20);
-
     path.quadraticBezierTo(size.width * 0.60, 0, size.width * 0.65, 0);
-
     path.lineTo(size.width, 0);
-
     path.lineTo(size.width, size.height);
-
     path.lineTo(0, size.height);
-
     path.close();
+    
     return path;
   }
 

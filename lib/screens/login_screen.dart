@@ -3,6 +3,7 @@ import 'package:lottie/lottie.dart';
 import '../services/auth_service.dart';
 import '../utils/validation_helper.dart';
 import 'register_screen.dart';
+import '../widgets/lupa_password.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -79,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         if (role == 'admin') {
           Navigator.pushReplacementNamed(context, '/adminDashboard');
         } else {
-          Navigator.pushReplacementNamed(context, '/userDashboard');
+          Navigator.pushReplacementNamed(context, '/booking');
         }
       }
     } catch (e) {
@@ -335,6 +336,26 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                               ),
                             ),
                             validator: ValidationHelper.validatePassword,
+                          ),
+                          
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            showForgotPasswordDialog(context);
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+                          ),
+                          child: const Text(
+                            'Lupa Password?',
+                            style: TextStyle(
+                              color: Color(0xFF4A90E2),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
