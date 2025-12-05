@@ -31,6 +31,8 @@ class _AdminDashboardState extends State<AdminDashboard>
   List<BookingSlot> _approved = [];
   List<BookingSlot> _rejected = [];
   Map<String, AppUser> _userCache = {};
+  String _adminLabName = '';
+  bool _labNameLoaded = false;
 
   Map<String, int> stats = {
     'pending': 0,
@@ -54,6 +56,40 @@ class _AdminDashboardState extends State<AdminDashboard>
     )..forward();
 
     _tabController = TabController(length: 3, vsync: this);
+    _loadLabNameFirst();
+  }
+
+  Future<void> _loadLabNameFirst() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final labsSnap = await FirebaseFirestore.instance
+            .collection('laboratorium')
+            .where('userId', isEqualTo: uid)
+            .get();
+        
+        if (labsSnap.docs.isNotEmpty) {
+          final labNames = labsSnap.docs
+              .map((d) => (d.data()['namaLab'] as String?) ?? '')
+              .where((name) => name.isNotEmpty)
+              .toList();
+          setState(() {
+            _adminLabName = labNames.isNotEmpty 
+                ? labNames.map((n) => n.toUpperCase()).join(', ') 
+                : '';
+            _labNameLoaded = true;
+          });
+        } else {
+          setState(() {
+            _labNameLoaded = true;
+          });
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _labNameLoaded = true;
+      });
+    }
     _loadAll();
   }
 
@@ -82,6 +118,7 @@ class _AdminDashboardState extends State<AdminDashboard>
           _approved = [];
           _rejected = [];
           _userCache = {};
+          _adminLabName = '';
           stats = {
             'pending': 0,
             'approved': 0,
@@ -192,6 +229,12 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   Widget _buildAppBar() {
+    final displayName = _adminLabName.isNotEmpty 
+        ? 'Admin $_adminLabName' 
+        : 'Loading...';
+    
+    final pendingCount = stats['pending'] ?? 0;
+    
     return SlideTransition(
       position: Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero)
           .animate(
@@ -233,7 +276,7 @@ class _AdminDashboardState extends State<AdminDashboard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Admin Dashboard',
+                    displayName,
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -253,29 +296,57 @@ class _AdminDashboardState extends State<AdminDashboard>
             ),
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      _showNotificationDialog();
+                    },
                     borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                    Icons.notifications_active,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                      SizedBox(width: 5),
-                      Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(
+                            Icons.notifications_outlined,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          if (pendingCount > 0)
+                            Positioned(
+                              right: -6,
+                              top: -6,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade600,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 18,
+                                  minHeight: 18,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '$pendingCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -505,24 +576,23 @@ class _AdminDashboardState extends State<AdminDashboard>
         children: [
           Icon(Icons.inbox_outlined, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 15),
-            Text(msg, style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
+          Text(msg, style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
           TextButton(onPressed: _loadAll, child: const Text('Refresh')),
         ],
       ),
     );
   }
 
-// ADAPT: ubah card agar menerima BookingSlot bukan Map
   Widget _buildPendingBookingCard(BookingSlot b) {
     final labName = b.lab?.namaLab ?? 'Lab';
     final sesiName = b.sesi?.sesi ?? '';
     final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
     final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
-    final color = Colors.blue; // bisa dipilih berdasarkan lab / random
+    final color = Colors.blue;
     final createdAt = b.createdAt ?? b.tanggalBooking;
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
-    final user = _userCache[b.idUser]; // idUser is non-nullable
+    final user = _userCache[b.idUser];
     final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
     final nim = (user?.nim.isNotEmpty == true) ? user!.nim : '-';
 
@@ -564,13 +634,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                            Text(userName,
+                          Text(userName,
                               style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.grey.shade800)),
                           const SizedBox(height: 4),
-                            Text('NIM: $nim',
+                          Text('NIM: $nim',
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade600)),
@@ -642,7 +712,6 @@ class _AdminDashboardState extends State<AdminDashboard>
               ],
             ),
           ),
-          // Tombol aksi
           Container(
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
@@ -836,14 +905,11 @@ class _AdminDashboardState extends State<AdminDashboard>
     return '${d.inDays} hari yang lalu';
   }
 
-  // Safe Indonesian date formatter with fallback if locale not initialized
   String _formatDateIndo(DateTime dt, {bool full = false}) {
     try {
       final pattern = full ? 'd MMMM yyyy' : 'd MMM yyyy';
-      // Use intl DateFormat only if available
       return DateFormat(pattern, 'id_ID').format(dt);
     } catch (e) {
-      // Fallback: manual mapping month
       const monthsFull = [
         'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'
       ];
@@ -856,14 +922,12 @@ class _AdminDashboardState extends State<AdminDashboard>
     }
   }
 
-// Approved & Rejected card adaptasi
   Widget _buildApprovedCard(BookingSlot b) {
-    // Samakan tampilan dengan card Pending, tanpa tombol aksi
     final labName = b.lab?.namaLab ?? 'Lab';
     final sesiName = b.sesi?.sesi ?? '';
     final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
     final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
-    final color = Colors.green; // warna aksen untuk approved
+    final color = Colors.green;
     final createdAt = b.createdAt ?? b.tanggalBooking;
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
@@ -942,13 +1006,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                   _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
                   const SizedBox(height: 8),
                   _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
-                      const SizedBox(height: 8),
-                      _buildInfoRow(
-                        Icons.description,
-                        'Keperluan',
-                        b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
-                        Colors.purple,
-                      ),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                    Icons.description,
+                    'Keperluan',
+                    b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
+                    Colors.purple,
+                  ),
                 ],
               ),
             ),
@@ -965,11 +1029,11 @@ class _AdminDashboardState extends State<AdminDashboard>
                     fontStyle: FontStyle.italic,
                   ),
                 ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () => _showDetail(b),
-                      child: const Text('Detail'),
-                    ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => _showDetail(b),
+                  child: const Text('Detail'),
+                ),
               ],
             ),
           ],
@@ -979,12 +1043,11 @@ class _AdminDashboardState extends State<AdminDashboard>
   }
 
   Widget _buildRejectedCard(BookingSlot b) {
-    // Samakan tampilan dengan card Pending, tanpa tombol aksi
     final labName = b.lab?.namaLab ?? 'Lab';
     final sesiName = b.sesi?.sesi ?? '';
     final dateStr = _formatDateIndo(b.tanggalBooking, full: true);
     final timeStr = b.sesi?.waktu.isNotEmpty == true ? b.sesi!.waktu : sesiName;
-    final color = Colors.red; // warna aksen untuk rejected
+    final color = Colors.red;
     final createdAt = b.createdAt ?? b.tanggalBooking;
     final diff = DateTime.now().difference(createdAt);
     final submittedAt = _relative(diff);
@@ -1063,13 +1126,13 @@ class _AdminDashboardState extends State<AdminDashboard>
                   _buildInfoRow(Icons.calendar_today, 'Tanggal', dateStr, Colors.green),
                   const SizedBox(height: 8),
                   _buildInfoRow(Icons.access_time, 'Sesi', timeStr, Colors.orange),
-                      const SizedBox(height: 8),
-                      _buildInfoRow(
-                        Icons.description,
-                        'Keperluan',
-                        b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
-                        Colors.purple,
-                      ),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(
+                    Icons.description,
+                    'Keperluan',
+                    b.keperluanKegiatan.isEmpty ? '-' : _truncate(b.keperluanKegiatan),
+                    Colors.purple,
+                  ),
                 ],
               ),
             ),
@@ -1086,11 +1149,11 @@ class _AdminDashboardState extends State<AdminDashboard>
                     fontStyle: FontStyle.italic,
                   ),
                 ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: () => _showDetail(b),
-                      child: const Text('Detail'),
-                    ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => _showDetail(b),
+                  child: const Text('Detail'),
+                ),
               ],
             ),
           ],
@@ -1099,7 +1162,6 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-// Dialog approve / reject modifikasi
   void _showApproveDialog(BookingSlot b) {
     showDialog(
       context: context,
@@ -1180,7 +1242,6 @@ class _AdminDashboardState extends State<AdminDashboard>
             onPressed: () async {
               Navigator.pop(context);
               final ok = await _service.updateBookingStatus(b.id, 'rejected');
-              // (opsional) simpan alasan ke field 'rejectReason'
               if (ok) {
                 if (controller.text.trim().isNotEmpty) {
                   await FirebaseFirestore.instance
@@ -1265,10 +1326,19 @@ class _AdminDashboardState extends State<AdminDashboard>
             child: Text('Batal', style: TextStyle(color: Colors.grey.shade600)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/');
-              _showSuccessSnackbar('Berhasil logout');
+              try {
+                await FirebaseAuth.instance.signOut();
+                if (mounted) {
+                  Navigator.pushReplacementNamed(context, '/');
+                  _showSuccessSnackbar('Berhasil logout');
+                }
+              } catch (e) {
+                if (mounted) {
+                  _showErrorSnackbar('Gagal logout: $e');
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange.shade600,
@@ -1278,6 +1348,104 @@ class _AdminDashboardState extends State<AdminDashboard>
             ),
             child: const Text('Logout'),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showNotificationDialog() {
+    final pendingCount = stats['pending'] ?? 0;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: pendingCount > 0 ? Colors.orange.shade50 : Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                pendingCount > 0 ? Icons.notifications_active : Icons.notifications_outlined,
+                color: pendingCount > 0 ? Colors.orange.shade600 : Colors.blue.shade600,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('Notifikasi Booking'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (pendingCount > 0) ...[
+              Text(
+                'Anda memiliki $pendingCount booking yang menunggu validasi.',
+                style: const TextStyle(fontSize: 15),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Booking terbaru:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              ..._pending.take(3).map((b) {
+                final user = _userCache[b.idUser];
+                final userName = (user?.name.isNotEmpty == true) ? user!.name : '-';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.circle, size: 8, color: Colors.orange.shade600),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '$userName • ${b.lab?.namaLab ?? 'Lab'} • ${_formatDateIndo(b.tanggalBooking)}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ] else ...[
+              Row(
+                children: [
+                  Icon(Icons.inbox_outlined, size: 50, color: Colors.grey.shade300),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Text(
+                      'Belum ada booking terbaru',
+                      style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup'),
+          ),
+          if (pendingCount > 0)
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _tabController.animateTo(0);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade600,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Lihat Semua'),
+            ),
         ],
       ),
     );
