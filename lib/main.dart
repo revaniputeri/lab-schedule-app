@@ -35,6 +35,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.blueAccent,
+        fontFamily: 'Poppins',
       ),
       home: const SplashScreen(),
       routes: {
