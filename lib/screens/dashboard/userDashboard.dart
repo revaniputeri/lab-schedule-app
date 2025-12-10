@@ -491,26 +491,6 @@ class _UserDashboardState extends State<UserDashboard>
                       );
                     },
                   ),
-                  const SizedBox(width: 10),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _showLogoutDialog,
-                      borderRadius: BorderRadius.circular(15),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: const Icon(
-                          Icons.logout,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -892,62 +872,6 @@ class _UserDashboardState extends State<UserDashboard>
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
         ),
-      ),
-    );
-  }
-
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.logout, color: Colors.red),
-            ),
-            const SizedBox(width: 12),
-            const Text('Logout'),
-          ],
-        ),
-        content: const Text(
-          'Anda akan keluar dari akun anda. Lanjutkan?',
-          style: TextStyle(fontSize: 15),
-          textAlign: TextAlign.left,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Batal', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await FirebaseAuth.instance.signOut();
-              } catch (e) {
-                print('Error signing out: $e');
-              }
-              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
-              _showSuccessSnackbar('Berhasil logout');
-            },
-            icon: const Icon(Icons.logout, size: 18),
-            label: const Text('Logout'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            ),
-          ),
-        ],
       ),
     );
   }
