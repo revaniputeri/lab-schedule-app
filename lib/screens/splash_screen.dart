@@ -3,13 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lottie/lottie.dart';
 
 class SplashScreen extends StatefulWidget {
-  final int duration;      // durasi dalam milidetik
-  final double logoSize;   // ukuran logo SIBOJI
+  final int duration;
+  final double logoSize;
 
   const SplashScreen({
     super.key,
-    this.duration = 4500,   
-    this.logoSize = 250,  
+    this.duration = 4500,
+    this.logoSize = 200,
   });
 
   @override
@@ -21,7 +21,6 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _anim;
   late final Animation<double> _fade;
 
-  // URL Lottie loader
   final String lottieLoaderUrl =
       'https://lottie.host/e65720c4-edec-43c2-9e44-7f053f7b25ab/rYfnhmSqTh.json';
 
@@ -31,10 +30,10 @@ class _SplashScreenState extends State<SplashScreen>
 
     _anim = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 1000),
     );
 
-    _fade = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
+    _fade = CurvedAnimation(parent: _anim, curve: Curves.easeInOut);
 
     _anim.forward();
 
@@ -44,7 +43,6 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _startSplash() async {
     debugPrint('Splash: started');
 
-    // durasi splash berasal dari parameter
     await Future.delayed(Duration(milliseconds: widget.duration));
 
     if (!mounted) return;
@@ -74,61 +72,119 @@ class _SplashScreenState extends State<SplashScreen>
         child: Container(
           width: double.infinity,
           height: double.infinity,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF4A90E2),
-                Color(0xFF5B9FEE),
-                Color(0xFF6BADFF),
+                Color(0xFF6B9EFF), // Biru soft terang
+                Color(0xFF5B8FFF), // Biru medium
+                Color(0xFF4B7FFF), // Biru cerah
+                Color(0xFF3B70EE), // Biru medium-dark
               ],
             ),
           ),
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // LOGO SIBOJI — ukuran bisa diatur
-                Container(
-                  padding: const EdgeInsets.all(25),
-                  child: Image.asset(
-                    'lib/assets/images/logo_siboji.png',
-                    width: widget.logoSize,
-                    height: widget.logoSize,
+          child: Stack(
+            children: [
+              // Decorative circles background
+              Positioned(
+                top: -100,
+                right: -100,
+                child: Container(
+                  width: 300,
+                  height: 300,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.05),
                   ),
                 ),
-
-                // const SizedBox(height: 10),
-
-         
-                // const SizedBox(height: 8),
-
-                // // Text(
-                // //   'Sistem Manajemen Booking Lab',
-                // //   style: TextStyle(
-                // //     fontSize: 14,
-                // //     color: Colors.white.withOpacity(0.85),
-                // //   ),
-                // // ),
-
-                // const SizedBox(height: 35),
-
-                SizedBox(
-                  width: 150,
-                  height: 150,
-                  child: Lottie.network(
-                    lottieLoaderUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) {
-                      return const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation(Colors.white),
-                      );
-                    },
+              ),
+              Positioned(
+                top: 150,
+                left: -150,
+                child: Container(
+                  width: 350,
+                  height: 350,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.05),
                   ),
                 ),
-              ],
-            ),
+              ),
+              Positioned(
+                bottom: -80,
+                left: 50,
+                child: Container(
+                  width: 250,
+                  height: 250,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.05),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 100,
+                right: -50,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.05),
+                  ),
+                ),
+              ),
+              
+              // Main content
+              SafeArea(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Logo dengan efek glow
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                    
+                          
+                        ),
+                        child: Image.asset(
+                          'lib/assets/images/logo_siboji.png',
+                          width: widget.logoSize,
+                          height: widget.logoSize,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // Loading indicator
+                      SizedBox(
+                        width: 100,
+                        height: 100,
+                        child: Lottie.network(
+                          lottieLoaderUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation(
+                                  Colors.white.withOpacity(0.9),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
