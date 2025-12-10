@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../../widgets/navbar.dart';
+import 'changePass.dart';
 
 class AdminProfilePage extends StatefulWidget {
   const AdminProfilePage({Key? key}) : super(key: key);
@@ -85,7 +86,7 @@ class _AdminProfilePageState extends State<AdminProfilePage>
           adminEmail = userDoc.email ?? '';
           adminRole = doc['role'] ?? 'Administrator';
           adminPhone = doc['phone'] ?? '-';
-          adminLab = doc['department'] ?? 'Teknologi Informasi';
+          adminLab = doc['name'] ?? 'Teknologi Informasi';
           joinDate = doc['joinDate'] ?? 'Jan 2024';
           isLoading = false;
         });
@@ -127,7 +128,7 @@ class _AdminProfilePageState extends State<AdminProfilePage>
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: Text('Logout'),
+            child: Text('Logout', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -186,7 +187,7 @@ class _AdminProfilePageState extends State<AdminProfilePage>
             left: 0,
             right: 0,
             bottom: 0,
-            child: const Navbar(userRole: 'admin', currentIndex: 3),
+            child: const Navbar(userRole: 'admin', currentIndex: 2),
           ),
         ],
       ),
@@ -438,13 +439,6 @@ class _AdminProfilePageState extends State<AdminProfilePage>
             ),
             const SizedBox(height: 12),
             // Join date
-            Text(
-              'Bergabung sejak $joinDate',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade600,
-              ),
-            ),
           ],
         ),
       ),
@@ -583,22 +577,15 @@ class _AdminProfilePageState extends State<AdminProfilePage>
             ),
             const SizedBox(height: 8),
             _buildMenuItem(
-              Icons.edit_outlined,
-              'Edit Profil Admin',
-              Color(0xFF4A90E2),
-              () {},
-            ),
-            _buildMenuItem(
               Icons.lock_outline,
               'Ubah Password',
               Color(0xFFFF9F43),
-              () {},
-            ),
-            _buildMenuItem(
-              Icons.help_outline,
-              'Bantuan & Panduan',
-              Color(0xFF6BADFF),
-              () {},
+              () {
+                 Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ChangePasswordPage()),
+                );
+              },
             ),
             _buildMenuItem(
               Icons.logout,
