@@ -110,7 +110,7 @@ class _ProfilePageState extends State<ProfilePage>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.logout, color: Color(0xFFFF9F43)),
+            Icon(Icons.logout, color: Color(0xFFEF4444)),
             SizedBox(width: 10),
             Text('Logout'),
           ],
@@ -127,12 +127,12 @@ class _ProfilePageState extends State<ProfilePage>
               Navigator.of(context).pushReplacementNamed('/login');
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFFF9F43),
+              backgroundColor: Color(0xFFEF4444),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: Text('Logout'),
+            child: Text('Logout',style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
