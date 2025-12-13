@@ -6,6 +6,8 @@ import 'package:jadwal_lab/models/user.dart';
 import 'package:jadwal_lab/models/bookingSlot.dart';
 import 'package:intl/intl.dart';
 import 'package:jadwal_lab/widgets/navbar.dart';
+import '../../services/notificaton_service.dart';
+
 
 // File: adminDashboard.dart
 // Dashboard untuk Admin/Dosen untuk validasi booking
@@ -15,15 +17,18 @@ class AdminDashboard extends StatefulWidget {
 
   @override
   State<AdminDashboard> createState() => _AdminDashboardState();
+  
 }
 
 class _AdminDashboardState extends State<AdminDashboard>
+
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late TabController _tabController;
 
   final _service = BookingService();
+  final NotificationService _notificationService = NotificationService();
   bool _isLoading = false;
   String? _error;
 
@@ -43,6 +48,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     'approved': 0,
     'rejected': 0,
     'total': 0,
+  
   };
 
   @override
@@ -1236,107 +1242,124 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  void _showApproveDialog(BookingSlot b) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.check_circle, color: Colors.green.shade600),
+ void _showApproveDialog(BookingSlot b) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 12),
-            const Text('Setujui Booking?'),
-          ],
+            child: Icon(Icons.check_circle, color: Colors.green.shade600),
+          ),
+          const SizedBox(width: 12),
+          const Text('Setujui Booking?'),
+        ],
+      ),
+      content: Builder(builder: (context) {
+        final user = _userCache[b.idUser];
+        final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
+        final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
+        return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
+      }),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Batal')),
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            
+            // Update status booking
+            final ok = await _service.updateBookingStatus(b.id, 'approved');
+            if (ok) {
+              _showSuccessSnackbar('Booking disetujui');
+              _loadAll();
+            } else {
+              _showErrorSnackbar('Gagal update status');
+            }
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade600),
+          child: const Text('Setujui'),
         ),
-        content: Builder(builder: (context) {
-          final user = _userCache[b.idUser];
-          final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
-          final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
-          return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
-        }),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Batal')),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final ok = await _service.updateBookingStatus(b.id, 'approved');
-              if (ok) {
-                _showSuccessSnackbar('Booking disetujui');
-                _loadAll();
-              } else {
-                _showErrorSnackbar('Gagal update status');
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade600),
-            child: const Text('Setujui'),
+      ],
+    ),
+  );
+}
+
+ void _showRejectDialog(BookingSlot b) {
+  final controller = TextEditingController();
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.cancel, color: Colors.red.shade600),
+          ),
+          const SizedBox(width: 12),
+          const Text('Tolak Booking?'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Builder(builder: (context) {
+            final user = _userCache[b.idUser];
+            final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
+            final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
+            return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
+          }),
+          const SizedBox(height: 16),
+          TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: InputDecoration(
+              labelText: 'Alasan penolakan (opsional)',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  void _showRejectDialog(BookingSlot b) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.cancel, color: Colors.red.shade600),
-            ),
-            const SizedBox(width: 12),
-            const Text('Tolak Booking?'),
-          ],
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Batal')),
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            
+            // Simpan alasan penolakan terlebih dahulu
+            if (controller.text.trim().isNotEmpty) {
+              await FirebaseFirestore.instance
+                  .collection('bookingSlots')
+                  .doc(b.id)
+                  .update({'rejectReason': controller.text.trim()});
+            }
+            
+            // Update status booking (Cloud Function akan handle notifikasi)
+            final ok = await _service.updateBookingStatus(b.id, 'rejected');
+            if (ok) {
+              _showSuccessSnackbar('Booking ditolak');
+              _loadAll();
+            } else {
+              _showErrorSnackbar('Gagal update status');
+            }
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600),
+          child: const Text('Tolak'),
         ),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          decoration: InputDecoration(
-            labelText: 'Alasan penolakan (opsional)',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Batal')),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final ok = await _service.updateBookingStatus(b.id, 'rejected');
-              if (ok) {
-                if (controller.text.trim().isNotEmpty) {
-                  await FirebaseFirestore.instance
-                      .collection('bookingSlots')
-                      .doc(b.id)
-                      .update({'rejectReason': controller.text.trim()});
-                }
-                _showSuccessSnackbar('Booking ditolak');
-                _loadAll();
-              } else {
-                _showErrorSnackbar('Gagal update status');
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600),
-            child: const Text('Tolak'),
-          ),
-        ],
-      ),
-    );
-  }
-
+      ],
+    ),
+  );
+}
   void _showSuccessSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1468,6 +1491,7 @@ class _AdminDashboardState extends State<AdminDashboard>
               const SizedBox(height: 8),
               ..._pending.take(3).map((b) {
                 final user = _userCache[b.idUser];
+                
                 final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),

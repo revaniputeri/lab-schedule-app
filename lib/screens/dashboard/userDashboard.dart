@@ -5,6 +5,7 @@ import '../../widgets/navbar.dart';
 import '../../models/bookingSlot.dart';
 import '../../models/lab.dart';
 import '../../models/sesi.dart';
+import '../../services/notificaton_service.dart'; // Import notification service
 
 class UserDashboard extends StatefulWidget {
   const UserDashboard({Key? key}) : super(key: key);
@@ -21,6 +22,9 @@ class _UserDashboardState extends State<UserDashboard>
   late AnimationController _slideController;
   late AnimationController _pulseController;
 
+  // Notification Service
+  final NotificationService _notificationService = NotificationService();
+
   // Data dari Firebase
   List<BookingSlot> upcomingBookings = [];
   List<BookingSlot> currentBookings = [];
@@ -32,7 +36,7 @@ class _UserDashboardState extends State<UserDashboard>
   int approvedCount = 0;
   
   // Filter state
-  String? selectedStatusFilter; // null = semua, 'Pending', 'Approved'
+  String? selectedStatusFilter;
 
   @override
   void initState() {
@@ -54,8 +58,10 @@ class _UserDashboardState extends State<UserDashboard>
     )..repeat(reverse: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeNotifications();
       _loadUserName();
       _loadBookings();
+      _listenToBookingUpdates();
     });
   }
 
@@ -65,6 +71,157 @@ class _UserDashboardState extends State<UserDashboard>
     _slideController.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  // Inisialisasi Notifikasi
+  Future<void> _initializeNotifications() async {
+    try {
+      // Initialize notification service
+      await _notificationService.initialize();
+      
+      // Save FCM token ke Firestore
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await _notificationService.saveFCMToken(uid);
+        print('FCM Token saved for user: $uid');
+      }
+    } catch (e) {
+      print('Error initializing notifications: $e');
+    }
+  }
+
+  // Listen untuk perubahan booking realtime
+  void _listenToBookingUpdates() {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+
+  // Listen ke perubahan status booking user
+  FirebaseFirestore.instance
+      .collection('bookingSlots')
+      .where('idUser', isEqualTo: uid)
+      .snapshots()
+      .listen((snapshot) {
+    for (var change in snapshot.docChanges) {
+      if (change.type == DocumentChangeType.modified) {
+        final data = change.doc.data();
+        if (data != null) {
+          final booking = BookingSlot.fromMap(data, change.doc.id);
+          
+          // Load data lab dan sesi untuk notifikasi
+          _loadBookingDetailsForNotification(booking).then((detailedBooking) {
+            // Cek apakah status berubah ke approved atau rejected
+            if (detailedBooking.isApproved) {
+              final labName = detailedBooking.lab?.namaLab ?? 'Lab';
+              final dateStr = _formatDate(detailedBooking.tanggalBooking);
+              final timeStr = detailedBooking.sesi?.waktu ?? 
+                             detailedBooking.sesi?.sesi ?? 
+                             'Waktu tidak tersedia';
+              
+              _showNotificationSnackbar(
+                'Booking Disetujui! ✅',
+                'Booking Anda di $labName untuk $dateStr pukul $timeStr telah disetujui',
+                Colors.green,
+              );
+            } else if (detailedBooking.isRejected) {
+              final labName = detailedBooking.lab?.namaLab ?? 'Lab';
+              final dateStr = _formatDate(detailedBooking.tanggalBooking);
+              final timeStr = detailedBooking.sesi?.waktu ?? 
+                             detailedBooking.sesi?.sesi ?? 
+                             'Waktu tidak tersedia';
+              
+              _showNotificationSnackbar(
+                'Booking Ditolak ❌',
+                'Booking Anda di $labName untuk $dateStr pukul $timeStr ditolak oleh admin',
+                Colors.red,
+              );
+            }
+          });
+        }
+        
+        // Reload bookings untuk update UI
+        _loadBookings();
+      }
+    }
+  });
+}
+
+// TAMBAHKAN fungsi helper ini untuk load detail booking:
+Future<BookingSlot> _loadBookingDetailsForNotification(BookingSlot booking) async {
+  BookingSlot updatedBooking = booking;
+  
+  // Load lab data
+  if (booking.idLab.isNotEmpty) {
+    try {
+      final labDoc = await FirebaseFirestore.instance
+          .collection('laboratorium')
+          .doc(booking.idLab)
+          .get();
+      
+      if (labDoc.exists) {
+        updatedBooking = updatedBooking.copyWith(
+          lab: Lab.fromMap(labDoc.data()!, labDoc.id),
+        );
+      }
+    } catch (e) {
+      print('Error fetching lab: $e');
+    }
+  }
+  
+  // Load sesi data
+  if (booking.idSesi.isNotEmpty) {
+    try {
+      final sesiDoc = await FirebaseFirestore.instance
+          .collection('sesi')
+          .doc(booking.idSesi)
+          .get();
+      
+      if (sesiDoc.exists) {
+        updatedBooking = updatedBooking.copyWith(
+          sesi: Sesi.fromMap(sesiDoc.data()!, sesiDoc.id),
+        );
+      }
+    } catch (e) {
+      print('Error fetching sesi: $e');
+    }
+  }
+  
+  return updatedBooking;
+}
+
+  // Tampilkan notifikasi di dalam app
+  void _showNotificationSnackbar(String title, String message, Color color) {
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(message),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'OK',
+          textColor: Colors.white,
+          onPressed: () {},
+        ),
+      ),
+    );
   }
 
   Future<void> _loadUserName() async {
@@ -91,7 +248,6 @@ class _UserDashboardState extends State<UserDashboard>
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final now = DateTime.now();
 
-      // Ambil semua booking user dari Firebase
       final querySnapshot = await FirebaseFirestore.instance
           .collection('bookingSlots')
           .where('idUser', isEqualTo: uid)
@@ -105,10 +261,8 @@ class _UserDashboardState extends State<UserDashboard>
       int approved = 0;
 
       for (var doc in querySnapshot.docs) {
-        // Parse BookingSlot dari Firestore
         BookingSlot booking = BookingSlot.fromMap(doc.data(), doc.id);
 
-        // Fetch data Lab
         if (booking.idLab.isNotEmpty) {
           try {
             final labDoc = await FirebaseFirestore.instance
@@ -126,7 +280,6 @@ class _UserDashboardState extends State<UserDashboard>
           }
         }
 
-        // Fetch data Sesi
         if (booking.idSesi.isNotEmpty) {
           try {
             final sesiDoc = await FirebaseFirestore.instance
@@ -144,11 +297,9 @@ class _UserDashboardState extends State<UserDashboard>
           }
         }
 
-        // Hitung statistik
         if (booking.isPending) pending++;
         if (booking.isApproved) approved++;
 
-        // Kategorikan booking berdasarkan tanggal dan waktu
         final bookingDate = DateTime(
           booking.tanggalBooking.year,
           booking.tanggalBooking.month,
@@ -158,43 +309,33 @@ class _UserDashboardState extends State<UserDashboard>
         final today = DateTime(now.year, now.month, now.day);
 
         if (bookingDate.isAfter(today)) {
-          // Booking yang akan datang
           upcoming.add(booking);
         } else if (bookingDate.isAtSameMomentAs(today)) {
-          // Booking hari ini - cek jam berdasarkan sesi
           if (booking.sesi != null) {
             final startHour = _parseTimeToHour(booking.sesi!.startTime);
             final endHour = _parseTimeToHour(booking.sesi!.endTime);
             final currentHour = now.hour + (now.minute / 60);
 
             if (currentHour >= startHour && currentHour <= endHour) {
-              // Sedang berlangsung
-              // Jika booking ditolak, jangan masukkan ke 'current' — biarkan muncul di list "Booking yang Anda Buat"
               if (booking.isRejected) {
-                // Treat rejected current-session bookings as upcoming so they remain visible
                 upcoming.add(booking);
               } else {
                 current.add(booking);
               }
             } else if (currentHour < startHour) {
-              // Belum dimulai
               upcoming.add(booking);
             } else {
-              // Sudah selesai
               past.add(booking);
             }
           } else {
-            // Jika tidak ada data sesi, masukkan ke upcoming
             upcoming.add(booking);
           }
         } else {
-          // Booking yang sudah lewat
           past.add(booking);
         }
       }
 
       setState(() {
-        // Sort setiap list berdasarkan tanggal dan waktu sesi
         upcomingBookings = upcoming;
         _sortBookingsByDateAndTime(upcomingBookings);
         
@@ -215,7 +356,6 @@ class _UserDashboardState extends State<UserDashboard>
         isLoadingBookings = false;
       });
       
-      // Tampilkan error ke user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -227,7 +367,6 @@ class _UserDashboardState extends State<UserDashboard>
     }
   }
 
-  // Helper function untuk format tanggal
   String _formatDate(DateTime date) {
     final days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -235,7 +374,6 @@ class _UserDashboardState extends State<UserDashboard>
     return '${days[date.weekday % 7]}, ${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  // Helper function untuk mendapatkan icon lab
   IconData _getLabIcon(String labName) {
     final name = labName.toLowerCase();
     if (name.contains('komputer')) return Icons.computer;
@@ -247,7 +385,6 @@ class _UserDashboardState extends State<UserDashboard>
     return Icons.science;
   }
 
-  // Helper function untuk mendapatkan warna status
   Color _getStatusColor(String status) {
     if (status.toLowerCase() == 'approved') return Color(0xFF10B981);
     if (status.toLowerCase() == 'pending') return Color(0xFFFF9F43);
@@ -255,10 +392,8 @@ class _UserDashboardState extends State<UserDashboard>
     return Color(0xFF6B7280);
   }
 
-  // Helper function untuk parse waktu ke jam (desimal)
   double _parseTimeToHour(String time) {
     try {
-      // Parse format "08.00" atau "08:00"
       final cleaned = time.replaceAll('.', ':');
       final parts = cleaned.split(':');
       if (parts.length >= 2) {
@@ -271,28 +406,23 @@ class _UserDashboardState extends State<UserDashboard>
     }
   }
 
-  // Helper function untuk mengurutkan booking berdasarkan tanggal dan waktu sesi
   void _sortBookingsByDateAndTime(List<BookingSlot> bookings) {
     bookings.sort((a, b) {
-      // Urutkan berdasarkan tanggal terlebih dahulu
       final dateComparison = a.tanggalBooking.compareTo(b.tanggalBooking);
       if (dateComparison != 0) {
         return dateComparison;
       }
 
-      // Jika tanggal sama, urutkan berdasarkan waktu sesi
       if (a.sesi != null && b.sesi != null) {
         final aStartHour = _parseTimeToHour(a.sesi!.startTime);
         final bStartHour = _parseTimeToHour(b.sesi!.startTime);
         return aStartHour.compareTo(bStartHour);
       }
 
-      // Jika salah satu tidak memiliki sesi, asumsikan urutan tetap
       return 0;
     });
   }
 
-  // Helper untuk mendapatkan nama status dengan huruf kapital
   String _getStatusDisplay(String status) {
     switch (status.toLowerCase()) {
       case 'approved':
@@ -311,7 +441,6 @@ class _UserDashboardState extends State<UserDashboard>
     return Scaffold(
       body: Stack(
         children: [
-          // BACKGROUND UTAMA
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -340,7 +469,6 @@ class _UserDashboardState extends State<UserDashboard>
                             _buildQuickStats(),
                             const SizedBox(height: 30),
                             
-                            // Tampilkan booking yang sedang berlangsung
                             if (currentBookings.isNotEmpty) ...[
                               _buildSectionTitle(
                                 'Sedang Berlangsung',
@@ -351,7 +479,6 @@ class _UserDashboardState extends State<UserDashboard>
                               const SizedBox(height: 30),
                             ],
                             
-                            // Tampilkan booking yang akan datang
                             _buildSectionTitle(
                               'Booking yang Anda Buat',
                               Icons.calendar_today,
@@ -368,7 +495,6 @@ class _UserDashboardState extends State<UserDashboard>
                                         _filterBookingsByStatus(upcomingBookings), 'Upcoming'),
                             const SizedBox(height: 30),
                             
-                            // Tampilkan booking yang sudah lewat
                             if (_filterBookingsByStatus(pastBookings).isNotEmpty) ...[
                               _buildSectionTitle(
                                 'Riwayat Booking',
@@ -379,7 +505,7 @@ class _UserDashboardState extends State<UserDashboard>
                                   _filterBookingsByStatus(pastBookings), 'Past'),
                             ],
                             
-                            const SizedBox(height: 100), // Extra space untuk navbar
+                            const SizedBox(height: 100),
                           ],
                         ),
                       ),
@@ -390,7 +516,6 @@ class _UserDashboardState extends State<UserDashboard>
             ),
           ),
 
-          // NAVBAR DI BAWAH
           Positioned(
             left: 0,
             right: 0,
@@ -500,7 +625,6 @@ class _UserDashboardState extends State<UserDashboard>
     );
   }
 
-  // Helper function untuk filter booking berdasarkan status
   List<BookingSlot> _filterBookingsByStatus(List<BookingSlot> bookings) {
     if (selectedStatusFilter == null) {
       return bookings;
@@ -510,11 +634,10 @@ class _UserDashboardState extends State<UserDashboard>
     }).toList();
   }
 
-  // Helper function untuk toggle filter
   void _toggleStatusFilter(String? status) {
     setState(() {
       if (selectedStatusFilter == status) {
-        selectedStatusFilter = null; // Reset filter jika diklik lagi
+        selectedStatusFilter = null;
       } else {
         selectedStatusFilter = status;
       }
@@ -536,7 +659,7 @@ class _UserDashboardState extends State<UserDashboard>
               Icons.event_note,
               Color(0xFF4A90E2),
               Color(0xFFE8F1FF),
-              onTap: () => _toggleStatusFilter(null), // Reset filter
+              onTap: () => _toggleStatusFilter(null),
               isActive: selectedStatusFilter == null,
             ),
           ),
@@ -683,10 +806,8 @@ class _UserDashboardState extends State<UserDashboard>
   }
 
   Widget _buildBookingCard(BookingSlot booking, String type) {
-    // Tambahkan badge "Sedang Berlangsung" untuk current bookings
     bool isCurrent = type == 'Current';
     
-    // Get data untuk display
     String labName = booking.lab?.namaLab ?? 'Lab';
     String sesiInfo = booking.sesi?.waktu ?? 'Sesi tidak tersedia';
     Color statusColor = _getStatusColor(booking.status);
@@ -719,7 +840,6 @@ class _UserDashboardState extends State<UserDashboard>
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Badge "Sedang Berlangsung"
                   if (isCurrent)
                     Container(
                       width: double.infinity,
