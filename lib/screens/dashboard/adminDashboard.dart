@@ -1315,7 +1315,7 @@ class _AdminDashboardState extends State<AdminDashboard>
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600),
-            child: const Text('Tolak'),
+            child: const Text('Tolak',style: TextStyle(color: Colors.white),),
           ),
         ],
       ),
@@ -1352,62 +1352,6 @@ class _AdminDashboardState extends State<AdminDashboard>
         backgroundColor: Colors.red.shade600,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.logout, color: Colors.orange.shade600),
-            ),
-            const SizedBox(width: 12),
-            const Text('Logout'),
-          ],
-        ),
-        content: const Text(
-          'Apakah Anda yakin ingin keluar dari dashboard admin?',
-          style: TextStyle(fontSize: 15),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Batal', style: TextStyle(color: Colors.grey.shade600)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await FirebaseAuth.instance.signOut();
-                if (mounted) {
-                  Navigator.pushReplacementNamed(context, '/');
-                  _showSuccessSnackbar('Berhasil logout');
-                }
-              } catch (e) {
-                if (mounted) {
-                  _showErrorSnackbar('Gagal logout: $e');
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange.shade600,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('Logout'),
-          ),
-        ],
       ),
     );
   }
