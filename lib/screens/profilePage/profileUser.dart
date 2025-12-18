@@ -132,7 +132,7 @@ class _ProfilePageState extends State<ProfilePage>
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: Text('Logout'),
+            child: Text('Logout',style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

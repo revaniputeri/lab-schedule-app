@@ -6,6 +6,8 @@ import 'package:jadwal_lab/models/user.dart';
 import 'package:jadwal_lab/models/bookingSlot.dart';
 import 'package:intl/intl.dart';
 import 'package:jadwal_lab/widgets/navbar.dart';
+import '../../services/notificaton_service.dart';
+
 
 // File: adminDashboard.dart
 // Dashboard untuk Admin/Dosen untuk validasi booking
@@ -15,15 +17,18 @@ class AdminDashboard extends StatefulWidget {
 
   @override
   State<AdminDashboard> createState() => _AdminDashboardState();
+  
 }
 
 class _AdminDashboardState extends State<AdminDashboard>
+
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late TabController _tabController;
 
   final _service = BookingService();
+  final NotificationService _notificationService = NotificationService();
   bool _isLoading = false;
   String? _error;
 
@@ -43,6 +48,7 @@ class _AdminDashboardState extends State<AdminDashboard>
     'approved': 0,
     'rejected': 0,
     'total': 0,
+  
   };
 
   @override
@@ -1221,51 +1227,53 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  void _showApproveDialog(BookingSlot b) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.check_circle, color: Colors.green.shade600),
+ void _showApproveDialog(BookingSlot b) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 12),
-            const Text('Setujui Booking?'),
-          ],
-        ),
-        content: Builder(builder: (context) {
-          final user = _userCache[b.idUser];
-          final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
-          final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
-          return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
-        }),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Batal')),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final ok = await _service.updateBookingStatus(b.id, 'approved');
-              if (ok) {
-                _showSuccessSnackbar('Booking disetujui');
-                _loadAll();
-              } else {
-                _showErrorSnackbar('Gagal update status');
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade600),
-            child: const Text('Setujui'),
+            child: Icon(Icons.check_circle, color: Colors.green.shade600),
           ),
+          const SizedBox(width: 12),
+          const Text('Setujui Booking?'),
         ],
       ),
-    );
-  }
+      content: Builder(builder: (context) {
+        final user = _userCache[b.idUser];
+        final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
+        final nim = ((user?.nim ?? '').isNotEmpty) ? user!.nim : '-';
+        return Text('$userName\nNIM: $nim\n${b.lab?.namaLab} • ${b.sesi?.waktu} • ${_formatDateIndo(b.tanggalBooking)}');
+      }),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Batal')),
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            
+            // Update status booking
+            final ok = await _service.updateBookingStatus(b.id, 'approved');
+            if (ok) {
+              _showSuccessSnackbar('Booking disetujui');
+              _loadAll();
+            } else {
+              _showErrorSnackbar('Gagal update status');
+            }
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade600),
+          child: const Text('Setujui'),
+        ),
+      ],
+    ),
+  );
+}
 
   void _showRejectDialog(BookingSlot b) {
     final controller = TextEditingController();
@@ -1397,6 +1405,7 @@ class _AdminDashboardState extends State<AdminDashboard>
               const SizedBox(height: 8),
               ..._pending.take(3).map((b) {
                 final user = _userCache[b.idUser];
+                
                 final userName = ((user?.name ?? '').isNotEmpty) ? user!.name : '-';
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
